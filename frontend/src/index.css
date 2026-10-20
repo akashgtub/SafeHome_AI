@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-safehome-bg text-safehome-text font-sans antialiased min-h-screen selection:bg-safehome-primary/20;
+    color: #182820;
+    background-color: #EFF7F1;
+  }
+}
+
+/* Custom aesthetic scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C8D8CC;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #A4BEAA;
+}
+
+/* Video range scrubber custom green style */
+input[type=range] {
+  accent-color: #168653;
+}
