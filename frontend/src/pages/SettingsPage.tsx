@@ -13,7 +13,7 @@ import { api } from '../services/api';
 import { AppSettings } from '../services/types';
 
 export const SettingsPage: React.FC = () => {
-  const [provider, setProvider] = useState('mock');
+  const [provider, setProvider] = useState('gemini');
   const [geminiKey, setGeminiKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
   const [ringSimMode, setRingSimMode] = useState(true);
@@ -26,7 +26,11 @@ export const SettingsPage: React.FC = () => {
     const fetchSettings = async () => {
       try {
         const data = await api.getSettings();
-        setProvider(data.ai_provider || 'mock');
+        if (data.privacy?.local_processing_only) {
+          setProvider('local');
+        } else {
+          setProvider(data.ai_provider || 'gemini');
+        }
         setRingSimMode(data.ring_simulator_mode);
         setHasGeminiKey(data.has_gemini_key);
         setHasOpenaiKey(data.has_openai_key);
@@ -42,8 +46,10 @@ export const SettingsPage: React.FC = () => {
     setSaving(true);
     setMsg(null);
     try {
+      const isLocal = provider === 'local';
       await api.updateSettings({
-        ai_provider: provider,
+        ai_provider: isLocal ? 'gemini' : provider,
+        local_processing_only: isLocal,
         gemini_api_key: geminiKey.trim() || undefined,
         openai_api_key: openaiKey.trim() || undefined,
         ring_simulator_mode: ringSimMode,
@@ -90,7 +96,7 @@ export const SettingsPage: React.FC = () => {
           <div className="space-y-3 text-xs">
             <label
               className={`p-4 rounded-xl border flex items-start space-x-3 cursor-pointer transition-all ${
-                provider === 'mock'
+                provider === 'local'
                   ? 'border-safehome-primary bg-safehome-bg'
                   : 'border-safehome-border hover:bg-[#FAFCFA]'
               }`}
@@ -98,17 +104,17 @@ export const SettingsPage: React.FC = () => {
               <input
                 type="radio"
                 name="ai_provider"
-                value="mock"
-                checked={provider === 'mock'}
-                onChange={() => setProvider('mock')}
+                value="local"
+                checked={provider === 'local'}
+                onChange={() => setProvider('local')}
                 className="mt-0.5 accent-[#168653]"
               />
               <div>
                 <span className="font-bold text-safehome-text">
-                  Local Edge CV Detector (Built-in Default • Zero API Key Required)
+                  Local Edge CV Detector (Offline Computer Vision • Zero API Key Required)
                 </span>
                 <p className="text-safehome-muted mt-0.5 text-[11px]">
-                  Uses OpenCV MOG2 optical delta algorithms and motion bounding contours. Clearly labeled as Local Edge CV. Suitable for completely offline testing.
+                  Uses OpenCV MOG2 optical delta algorithms and motion bounding contours. Runs 100% locally with zero external network transmission.
                 </p>
               </div>
             </label>

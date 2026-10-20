@@ -65,6 +65,10 @@ backend/.env
 backend/.env.*
 frontend/.env
 frontend/.env.*
+!.env.example
+!**/.env.example
+!backend/.env.example
+!frontend/.env.example
 
 # Temporary / Scratch scripts
 inspect_db.py

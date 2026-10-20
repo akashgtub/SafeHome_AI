@@ -1,0 +1,64 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: safehome-ai-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: safehome-storage
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: HOST
+        value: 0.0.0.0
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: CORS_ORIGINS
+        value: https://safehome-ai-frontend.onrender.com,http://localhost:5173
+      - key: DATABASE_URL
+        value: sqlite:///./data/safehome.db
+      - key: UPLOAD_DIR
+        value: ./data/uploads
+      - key: FRAMES_DIR
+        value: ./data/frames
+      - key: SAMPLE_DIR
+        value: ./data/sample
+      - key: RING_SIMULATOR_MODE
+        value: "True"
+      - key: RING_CLIENT_ID
+        sync: false
+      - key: RING_CLIENT_SECRET
+        sync: false
+      - key: RING_WEBHOOK_SECRET
+        sync: false
+
+  # Frontend Static Site
+  - type: web
+    name: safehome-ai-frontend
+    runtime: static
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

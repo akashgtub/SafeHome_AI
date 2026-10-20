@@ -105,7 +105,7 @@ export const Topbar: React.FC<TopbarProps> = ({ unreadCount = 0, onSearch }) => 
                 className="w-full text-left px-4 py-2 text-xs text-safehome-red hover:bg-safehome-redLight flex items-center gap-2 font-medium"
               >
                 <LogOut className="w-3.5 h-3.5 text-safehome-red" />
-                <span>Demo Sign Out</span>
+                <span>Sign Out</span>
               </button>
             </div>
           )}

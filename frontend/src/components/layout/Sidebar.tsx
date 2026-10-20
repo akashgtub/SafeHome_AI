@@ -18,7 +18,7 @@ interface SidebarProps {
   unreadAlertsCount?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ unreadAlertsCount = 3 }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ unreadAlertsCount = 0 }) => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Live View', path: '/live', icon: Video },

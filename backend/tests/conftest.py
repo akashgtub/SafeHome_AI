@@ -1,13 +1,30 @@
 import os
+import sys
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.app.main import app
-from backend.app.database import Base, get_db
-import backend.app.database as db_module
-from backend.app.models import PrivacySetting
+# Ensure sys.path includes both repository root and backend directory
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+try:
+    from backend.app.main import app
+    from backend.app.database import Base, get_db
+    import backend.app.database as db_module
+    from backend.app.models import PrivacySetting
+    from backend.app.config import settings
+except ImportError:
+    from app.main import app
+    from app.database import Base, get_db
+    import app.database as db_module
+    from app.models import PrivacySetting
+    from app.config import settings
 
 TEST_DB_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "test_safehome.db"))
 TEST_DATABASE_URL = f"sqlite:///{TEST_DB_FILE.replace(os.sep, '/')}"
@@ -48,3 +65,13 @@ def clean_test_db():
     finally:
         db.close()
     yield
+
+@pytest.fixture(autouse=True)
+def isolate_test_storage(monkeypatch, tmp_path):
+    test_upload = str(tmp_path / "test_uploads")
+    test_frames = str(tmp_path / "test_frames")
+    os.makedirs(test_upload, exist_ok=True)
+    os.makedirs(test_frames, exist_ok=True)
+    monkeypatch.setattr(settings, "UPLOAD_DIR", test_upload)
+    monkeypatch.setattr(settings, "FRAMES_DIR", test_frames)
+

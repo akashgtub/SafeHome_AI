@@ -256,7 +256,9 @@ export const LiveViewPage: React.FC = () => {
           <div className="mt-4 pt-3 border-t border-safehome-border">
             <div className="flex items-center justify-between text-xs">
               <span className="text-safehome-muted">Ring Stream Latency</span>
-              <span className="font-bold text-safehome-primary">~180ms</span>
+              <span className={`font-bold ${selectedDevice && selectedDevice.status === 'online' ? 'text-safehome-primary' : 'text-safehome-muted'}`}>
+                {selectedDevice && selectedDevice.status === 'online' ? '~180ms (WebRTC)' : 'Not streaming'}
+              </span>
             </div>
           </div>
         </div>

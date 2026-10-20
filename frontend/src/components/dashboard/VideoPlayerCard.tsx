@@ -31,8 +31,8 @@ export const VideoPlayerCard: React.FC<VideoPlayerCardProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'ring'>('upload');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(4); // Default 0:04 like screenshot
-  const [duration, setDuration] = useState(20);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(activeVideo?.duration || 0);
   const [isMuted, setIsMuted] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -41,6 +41,16 @@ export const VideoPlayerCard: React.FC<VideoPlayerCardProps> = ({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (activeVideo) {
+      setDuration(activeVideo.duration || 0);
+      setCurrentTime(0);
+    } else {
+      setDuration(0);
+      setCurrentTime(0);
+    }
+  }, [activeVideo?.id]);
 
   // Jump to timestamp when an event in the timeline is clicked
   useEffect(() => {

@@ -147,18 +147,72 @@ SafeHome AI supports three visual analysis modes:
 
 | Provider | Setting | Key Required? | Description |
 |---|---|---|---|
-| **Local Edge CV (Default)** | `AI_PROVIDER=mock` | **No** | Uses OpenCV MOG2 background subtraction and optical contours. 100% offline and clearly labeled. |
-| **Google Gemini Vision** | `AI_PROVIDER=gemini` | Yes (`GEMINI_API_KEY`) | Analyzes keyframes using `gemini-1.5-flash` with strict visual grounding instructions. |
+| **Google Gemini Vision (Recommended)** | `AI_PROVIDER=gemini` | Yes (`GEMINI_API_KEY`) | Analyzes keyframes using `gemini-1.5-flash` with strict visual grounding instructions. |
 | **OpenAI GPT-4o-mini Vision** | `AI_PROVIDER=openai` | Yes (`OPENAI_API_KEY`) | Multi-frame vision extraction via `gpt-4o-mini`. |
+| **Local Edge CV (Offline Mode)** | `AI_PROVIDER=local` | **No** | Uses OpenCV MOG2 optical motion contours. 100% offline with zero external cloud transmission. |
 
-You can toggle providers and enter API keys directly in the **Settings** page within the app.
+You can configure providers and API keys securely in backend environment variables or through the **Settings** interface.
 
 ---
 
-## 🔔 Amazon Vision / Ring Hackathon Integration
+## 🚀 Render Production Deployment Guide
+
+SafeHome AI is designed to deploy on **Render** using either the Infrastructure-as-Code Blueprint (`render.yaml`) or manual service creation.
+
+### Option A: One-Click Blueprint Deployment (`render.yaml`)
+1. Push your repository to GitHub.
+2. In the Render Dashboard, select **New +** → **Blueprint**.
+3. Select your repository. Render automatically reads `render.yaml` to provision both the backend web service and frontend static site.
+4. Supply your secret environment variables (`GEMINI_API_KEY` or `OPENAI_API_KEY`) when prompted.
+
+---
+
+### Option B: Manual Service Configuration
+
+#### 1. Backend Web Service
+- **Service Type:** Web Service
+- **Environment:** `Python 3`
+- **Root Directory:** `backend`
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- **Health Check Path:** `/health`
+- **Persistent Disk (Required for SQLite & Uploads):**
+  - Render containers have an ephemeral filesystem by default.
+  - Mount Path: `/data` (Disk Size: 1GB or more).
+  - Point `DATABASE_URL=sqlite:///./data/safehome.db`, `UPLOAD_DIR=./data/uploads`, `FRAMES_DIR=./data/frames`.
+  - Alternatively, configure a managed PostgreSQL database URL if preferred.
+- **Environment Variables:**
+  - `HOST`: `0.0.0.0`
+  - `PORT`: Supplied automatically by Render
+  - `AI_PROVIDER`: `gemini` (or `openai` / `local`)
+  - `GEMINI_API_KEY`: Your Google Gemini API key
+  - `GEMINI_MODEL`: `gemini-1.5-flash`
+  - `OPENAI_API_KEY`: Your OpenAI API key (optional)
+  - `OPENAI_MODEL`: `gpt-4o-mini`
+  - `CORS_ORIGINS`: `https://<your-frontend-service>.onrender.com`
+  - `DATABASE_URL`: `sqlite:///./data/safehome.db`
+  - `UPLOAD_DIR`: `./data/uploads`
+  - `FRAMES_DIR`: `./data/frames`
+
+#### 2. Frontend Static Site
+- **Service Type:** Static Site
+- **Root Directory:** `frontend`
+- **Build Command:** `npm install && npm run build`
+- **Publish Directory:** `dist`
+- **Redirects / Rewrites (Client-Side Routing):**
+  - **Type:** Rewrite
+  - **Source:** `/*`
+  - **Destination:** `/index.html`
+- **Environment Variables:**
+  - `VITE_API_BASE_URL`: `https://<your-backend-service>.onrender.com`
+
+---
+
+## 🔔 Amazon Vision / Ring Integration
 
 - **Partner API URL**: `https://api.amazonvision.com`
 - **Specification**: JSON:API Standard
-- **Webhooks**: Real-time event notifications (`motion`, `ding`, `person`, `package_delivered`) signed with HMAC SHA-256 (`X-Ring-Signature`).
-- **Simulator Mode**: `RING_SIMULATOR_MODE=True` allows full evaluation of event ingestion and alerts without physical camera hardware.
-- Use the **Ring Integration** page in the dashboard to trigger simulated events or synchronize discovered devices.
+- **Webhooks**: Real-time event notifications (`motion`, `ding`, `person`, `package_delivered`) verified with HMAC SHA-256 (`X-Ring-Signature`).
+- **Simulator Mode**: `RING_SIMULATOR_MODE=True` enables isolated sandbox testing of webhooks and safety processing without requiring physical camera hardware.
+- Use the **Ring Integration** page in the dashboard to trigger sandbox events or synchronize discovered devices.
+

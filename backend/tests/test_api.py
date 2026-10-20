@@ -540,3 +540,157 @@ def test_privacy_and_data_retention():
     still_exists = db.query(Video).filter(Video.id == recent_id).first()
     assert still_exists is not None, "Unexpired user video must not be deleted by retention policy"
     db.close()
+
+# ====================================================================
+# 17. Health endpoint works
+# ====================================================================
+def test_health_endpoint_works():
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "healthy"
+    assert data["app"] == "SafeHome AI"
+    assert data["version"] == "1.0.0"
+    assert "timestamp" in data
+
+# ====================================================================
+# 18. Failed uploads do not create success notifications or database records
+# ====================================================================
+def test_failed_upload_does_not_create_success_notification():
+    # Attempt upload of unreadable corrupt bytes
+    corrupt_content = b"not-a-valid-video-stream-content"
+    resp = client.post(
+        "/api/videos/upload",
+        files={"file": ("broken_footage.mp4", io.BytesIO(corrupt_content), "video/mp4")}
+    )
+    assert resp.status_code == 400
+    assert "Corrupt or invalid video file" in resp.json()["detail"]
+
+    # Verify no video record was persisted
+    db = TestingSessionLocal()
+    assert db.query(Video).count() == 0
+    assert db.query(Notification).count() == 0
+    assert db.query(Event).count() == 0
+    db.close()
+
+# ====================================================================
+# 19. Invalid video file formats are rejected
+# ====================================================================
+def test_invalid_video_files_rejected():
+    # Unsupported file extensions
+    bad_files = [
+        ("malicious.exe", b"MZ...", "application/x-msdownload"),
+        ("notes.txt", b"plain text", "text/plain"),
+        ("document.pdf", b"%PDF-1.4...", "application/pdf")
+    ]
+    for filename, content, mime in bad_files:
+        resp = client.post(
+            "/api/videos/upload",
+            files={"file": (filename, io.BytesIO(content), mime)}
+        )
+        assert resp.status_code == 400
+        assert "Unsupported format" in resp.json()["detail"]
+
+    db = TestingSessionLocal()
+    assert db.query(Video).count() == 0
+    assert db.query(Notification).count() == 0
+    db.close()
+
+# ====================================================================
+# 20. Dashboard statistics accurately reflect real database records
+# ====================================================================
+def test_dashboard_statistics_match_actual_records():
+    db = TestingSessionLocal()
+    v1 = Video(
+        filename="rec1.mp4",
+        original_filename="rec1.mp4",
+        file_path="/path/rec1.mp4",
+        duration=30.0,
+        status="completed",
+        is_demo=False
+    )
+    v2 = Video(
+        filename="rec2.mp4",
+        original_filename="rec2.mp4",
+        file_path="/path/rec2.mp4",
+        duration=45.0,
+        status="completed",
+        is_demo=False
+    )
+    db.add_all([v1, v2])
+    db.commit()
+
+    e1 = Event(
+        video_id=v1.id,
+        category="Person",
+        title="Visitor approached",
+        description="Person on walkway",
+        priority="Medium",
+        review_status="Pending Review",
+        is_demo=False
+    )
+    e2 = Event(
+        video_id=v2.id,
+        category="Motion",
+        title="Porch motion",
+        description="Movement on porch",
+        priority="Low",
+        review_status="Reviewed",
+        is_demo=False
+    )
+    e3 = Event(
+        video_id=v2.id,
+        category="Package",
+        title="Package observed",
+        description="Package at door",
+        priority="Low",
+        review_status="Pending Review",
+        is_demo=False
+    )
+    db.add_all([e1, e2, e3])
+    db.commit()
+
+    s2 = AISummary(
+        video_id=v2.id,
+        overall_summary="Person arrived and package observed at door.",
+        model_used="Gemini Vision (gemini-1.5-flash)",
+        is_demo=False
+    )
+    db.add(s2)
+    db.commit()
+    db.close()
+
+    resp = client.get("/api/dashboard/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Verify counts match exact records
+    assert data["total_events"] == 3
+    assert data["review_pending"] == 2
+    assert data["ai_summarized_count"] == 1
+    assert data["active_video"]["original_filename"] == "rec2.mp4"
+    assert data["active_summary"]["overall_summary"] == "Person arrived and package observed at door."
+    assert data["priority_distribution"]["Medium"] == 1
+    assert data["priority_distribution"]["Low"] == 2
+    assert data["priority_distribution"]["High"] == 0
+
+# ====================================================================
+# 21. Fake demo data is not inserted in production paths
+# ====================================================================
+def test_fake_demo_data_not_inserted_in_production():
+    resp = client.post("/api/settings/reset-demo-data")
+    assert resp.status_code == 200
+
+    db = TestingSessionLocal()
+    # Confirm no demo records exist
+    demo_videos = db.query(Video).filter(Video.is_demo == True).count()
+    demo_events = db.query(Event).filter(Event.is_demo == True).count()
+    demo_summaries = db.query(AISummary).filter(AISummary.is_demo == True).count()
+    sim_devices = db.query(RingDevice).filter(RingDevice.is_simulator == True).count()
+    db.close()
+
+    assert demo_videos == 0
+    assert demo_events == 0
+    assert demo_summaries == 0
+    assert sim_devices == 0
+

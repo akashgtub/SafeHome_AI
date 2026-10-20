@@ -63,10 +63,10 @@ export const PrivacyPage: React.FC = () => {
   };
 
   const handleResetDemoData = async () => {
-    if (window.confirm('Reset demo data to initial demonstration state? This will re-seed sample events and video without deleting your personal uploaded files.')) {
+    if (window.confirm('Clean any legacy demo data from the database? Real user recordings and active configurations will be preserved.')) {
       try {
         await api.resetDemoData(false);
-        setSavedMsg('Demo data reset to pristine state.');
+        setSavedMsg('Demo records cleaned. Real user records preserved.');
         setTimeout(() => setSavedMsg(null), 3000);
         loadData();
       } catch (e) {
@@ -227,15 +227,15 @@ export const PrivacyPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Demo Reset Card (Section 12) */}
+      {/* Clean Demo Data Card */}
       <div className="bg-white rounded-2xl p-6 border border-safehome-border shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h4 className="text-xs font-bold text-safehome-text flex items-center gap-2">
             <RotateCcw className="w-4 h-4 text-safehome-muted" />
-            Hackathon Demonstration Reset
+            Clean Legacy Demo Data
           </h4>
           <p className="text-[11px] text-safehome-muted mt-0.5">
-            Reset demonstration data back to default values. Never deletes user-uploaded footage without confirmation.
+            Remove any legacy demo records from database. Genuine user recordings and real settings are strictly preserved.
           </p>
         </div>
 
@@ -243,7 +243,7 @@ export const PrivacyPage: React.FC = () => {
           onClick={handleResetDemoData}
           className="px-4 py-2 bg-white border border-safehome-border hover:bg-safehome-bg text-safehome-text rounded-xl text-xs font-semibold transition-all whitespace-nowrap shadow-2xs"
         >
-          Reset Demo Data
+          Clean Demo Data
         </button>
       </div>
     </div>
