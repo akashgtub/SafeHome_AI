@@ -48,11 +48,13 @@ class VideoProcessor:
         video_id: int,
         file_path: str,
         sample_interval_sec: float = 1.0,
-        progress_callback = None
+        progress_callback = None,
+        blur_faces: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Samples frames at regular intervals and uses OpenCV MOG2 background
         subtractor to detect motion contours, bounding boxes, and activity scores.
+        Optionally blurs detected human faces if blur_faces is True (Privacy Mode).
         """
         cap = cv2.VideoCapture(file_path)
         if not cap.isOpened():
@@ -64,6 +66,13 @@ class VideoProcessor:
 
         # Background subtractor for computer vision motion detection
         bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=30, detectShadows=True)
+
+        face_cascade = None
+        if blur_faces:
+            try:
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            except Exception as e:
+                print(f"[VideoProcessor] Warning: Could not initialize face cascade: {e}")
 
         frames_sampled = []
         frame_index = 0
@@ -112,6 +121,20 @@ class VideoProcessor:
 
                 # Draw subtle indicator if motion is significant
                 save_frame = frame.copy()
+
+                # Facial Anonymization Blur (if enabled in privacy preferences)
+                if blur_faces and face_cascade is not None and not face_cascade.empty():
+                    try:
+                        gray = cv2.cvtColor(save_frame, cv2.COLOR_BGR2GRAY)
+                        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20))
+                        for (fx, fy, fw, fh) in faces:
+                            face_roi = save_frame[fy:fy+fh, fx:fx+fw]
+                            ksize = max(21, (fw // 2) * 2 + 1)
+                            blurred_roi = cv2.GaussianBlur(face_roi, (ksize, ksize), 30)
+                            save_frame[fy:fy+fh, fx:fx+fw] = blurred_roi
+                    except Exception as e:
+                        pass
+
                 if motion_detected and bounding_boxes:
                     for b in bounding_boxes[:3]:
                         # Draw soft green bounding box for computer vision indicator

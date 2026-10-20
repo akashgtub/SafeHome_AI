@@ -75,6 +75,17 @@ export const PrivacyPage: React.FC = () => {
     }
   };
 
+  const handleEnforceRetention = async () => {
+    try {
+      const res = await api.enforceRetention();
+      setSavedMsg(res.message || 'Retention policy successfully enforced.');
+      setTimeout(() => setSavedMsg(null), 3000);
+      loadData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Title */}
@@ -197,13 +208,23 @@ export const PrivacyPage: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleSaveSettings}
-          disabled={saving}
-          className="px-5 py-2 rounded-xl bg-safehome-primary text-white text-xs font-semibold hover:bg-safehome-deep transition-all shadow-xs"
-        >
-          {saving ? 'Saving...' : 'Save Privacy Preferences'}
-        </button>
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            onClick={handleSaveSettings}
+            disabled={saving}
+            className="px-5 py-2 rounded-xl bg-safehome-primary text-white text-xs font-semibold hover:bg-safehome-deep transition-all shadow-xs"
+          >
+            {saving ? 'Saving...' : 'Save Privacy Preferences'}
+          </button>
+
+          <button
+            onClick={handleEnforceRetention}
+            className="px-4 py-2 rounded-xl bg-white border border-safehome-border hover:bg-safehome-bg text-safehome-text text-xs font-medium transition-all shadow-2xs flex items-center gap-1.5"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-safehome-muted" />
+            <span>Enforce Retention Policy Now</span>
+          </button>
+        </div>
       </div>
 
       {/* Demo Reset Card (Section 12) */}

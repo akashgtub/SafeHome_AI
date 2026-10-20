@@ -72,3 +72,32 @@ def test_summary_and_export():
         exp_resp = client.get(f"/api/summaries/{sum_id}/export?format=json")
         assert exp_resp.status_code == 200
         assert "overall_summary" in exp_resp.json()
+
+def test_privacy_and_retention():
+    # 1. Update privacy preferences
+    update_resp = client.post(
+        "/api/settings",
+        json={"retention_days": 14, "blur_faces": True, "local_processing_only": True}
+    )
+    assert update_resp.status_code == 200
+
+    # 2. Verify settings are reflected
+    settings_resp = client.get("/api/settings")
+    assert settings_resp.status_code == 200
+    p = settings_resp.json()["privacy"]
+    assert p["retention_days"] == 14
+    assert p["blur_faces"] is True
+    assert p["local_processing_only"] is True
+
+    # 3. Verify storage statistics
+    stats_resp = client.get("/api/settings/storage-stats")
+    assert stats_resp.status_code == 200
+    stats = stats_resp.json()
+    assert "total_storage_mb" in stats
+    assert "video_count" in stats
+
+    # 4. Enforce retention policy
+    retention_resp = client.post("/api/settings/enforce-retention")
+    assert retention_resp.status_code == 200
+    assert retention_resp.json()["status"] == "success"
+

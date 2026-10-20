@@ -187,4 +187,9 @@ export const api = {
     const res = await client.post(`/api/settings/reset-demo-data?delete_user_files=${deleteUserFiles}`);
     return res.data;
   },
+
+  enforceRetention: async () => {
+    const res = await client.post('/api/settings/enforce-retention');
+    return res.data;
+  },
 };

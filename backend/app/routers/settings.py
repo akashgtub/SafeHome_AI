@@ -123,3 +123,42 @@ def reset_demo_data(delete_user_files: bool = False, db: Session = Depends(get_d
     seed_demo_data(db)
 
     return {"message": "Demo data successfully reset to pristine state"}
+
+@router.post("/enforce-retention")
+def enforce_retention(db: Session = Depends(get_db)):
+    """
+    Purges non-demo videos whose retention_expires_at has elapsed or are older
+    than the active retention_days policy.
+    """
+    now = datetime.datetime.utcnow()
+    privacy = db.query(PrivacySetting).first()
+    retention_days = privacy.retention_days if privacy else 30
+
+    expired_videos = []
+    if retention_days > 0:
+        cutoff = now - datetime.timedelta(days=retention_days)
+        expired_videos = db.query(Video).filter(
+            Video.is_demo == False,
+            (Video.retention_expires_at <= now) | (Video.created_at <= cutoff)
+        ).all()
+
+    purged_count = 0
+    for v in expired_videos:
+        try:
+            if os.path.exists(v.file_path):
+                os.remove(v.file_path)
+            frame_dir = os.path.join(settings.FRAMES_DIR, f"vid_{v.id}")
+            if os.path.exists(frame_dir):
+                shutil.rmtree(frame_dir)
+        except Exception as e:
+            print(f"Error purging video files: {e}")
+        db.delete(v)
+        purged_count += 1
+
+    db.commit()
+    return {
+        "status": "success",
+        "purged_count": purged_count,
+        "message": f"Purged {purged_count} expired video file(s) per retention policy ({retention_days} days)."
+    }
+

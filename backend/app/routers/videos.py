@@ -2,12 +2,13 @@ import os
 import uuid
 import shutil
 import asyncio
+import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, BackgroundTasks, status, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import Video, AnalysisJob, Event, AISummary, Notification
+from ..models import Video, AnalysisJob, Event, AISummary, Notification, PrivacySetting
 from ..config import settings
 from ..schemas import VideoResponse, AnalysisJobResponse
 from ..services.video_processor import VideoProcessor
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/api/videos", tags=["Videos"])
 def run_analysis_pipeline_sync(video_id: int):
     """
     Background worker that runs OpenCV frame sampling and AI analysis.
-    Uses its own db session.
+    Uses its own db session. Respects Privacy Settings (blur_faces, local_processing_only).
     """
     from ..database import SessionLocal
     db = SessionLocal()
@@ -27,6 +28,10 @@ def run_analysis_pipeline_sync(video_id: int):
         job = db.query(AnalysisJob).filter(AnalysisJob.video_id == video_id).first()
         if not video or not job:
             return
+
+        privacy = db.query(PrivacySetting).first()
+        blur_faces = privacy.blur_faces if privacy else False
+        local_processing_only = privacy.local_processing_only if privacy else False
 
         job.status = "running"
         job.progress = 10
@@ -50,7 +55,8 @@ def run_analysis_pipeline_sync(video_id: int):
             video_id=video.id,
             file_path=video.file_path,
             sample_interval_sec=1.0,
-            progress_callback=update_progress
+            progress_callback=update_progress,
+            blur_faces=blur_faces
         )
 
         job.frames_analyzed = len(sampled)
@@ -61,7 +67,12 @@ def run_analysis_pipeline_sync(video_id: int):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         events_data, summary_data, model_name = loop.run_until_complete(
-            AIAnalyzer.analyze_video_frames(meta, sampled, is_demo=video.is_demo)
+            AIAnalyzer.analyze_video_frames(
+                meta,
+                sampled,
+                is_demo=video.is_demo,
+                local_processing_only=local_processing_only
+            )
         )
         loop.close()
 
@@ -195,6 +206,13 @@ async def upload_video(
             os.remove(file_path)
         raise HTTPException(status_code=400, detail=f"Corrupt or invalid video file: {str(e)}")
 
+    # Compute retention expiry date according to privacy policy
+    privacy = db.query(PrivacySetting).first()
+    retention_days = privacy.retention_days if privacy else 30
+    expires_at = None
+    if retention_days and retention_days > 0:
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=retention_days)
+
     # Create video record
     video = Video(
         filename=unique_name,
@@ -206,7 +224,8 @@ async def upload_video(
         height=meta["height"],
         fps=meta["fps"],
         status="processing",
-        is_demo=False
+        is_demo=False,
+        retention_expires_at=expires_at
     )
     db.add(video)
     db.commit()

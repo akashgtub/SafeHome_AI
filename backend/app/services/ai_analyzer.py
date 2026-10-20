@@ -16,15 +16,27 @@ class AIAnalyzer:
         cls,
         video_metadata: Dict[str, Any],
         sampled_frames: List[Dict[str, Any]],
-        is_demo: bool = False
+        is_demo: bool = False,
+        local_processing_only: bool = False
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], str]:
         """
         Runs frame-by-frame visual analysis using configured AI provider:
         - "gemini": Google Gemini 1.5 Flash Vision API
         - "openai": OpenAI GPT-4o-mini Vision API
         - "mock": Truthfully labeled Edge Computer Vision Motion Detector (Fallback Mode)
+        - Local Edge CV Privacy Mode: 100% offline edge processing (Zero Cloud Transmission)
         Returns: (events, summary_data, model_name)
         """
+        if local_processing_only:
+            model_label = "Local Edge CV (Privacy Mode - Zero Cloud Transmission)"
+            events, summary = cls._analyze_with_local_cv(
+                video_metadata,
+                sampled_frames,
+                is_demo,
+                fallback_note="Local edge privacy mode active. No keyframes or telemetry transmitted outside device."
+            )
+            return events, summary, model_label
+
         provider = settings.AI_PROVIDER.lower()
 
         # If user configured Gemini and key is present
