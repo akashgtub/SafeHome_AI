@@ -123,7 +123,18 @@ export const VideoPlayerCard: React.FC<VideoPlayerCardProps> = ({
 
   const videoSrc = activeVideo?.stream_url
     ? `${API_BASE_URL}${activeVideo.stream_url}`
-    : `${API_BASE_URL}/data/sample/front_door_recording.mp4`;
+    : '';
+
+  const formattedDate = activeVideo?.created_at
+    ? new Date(activeVideo.created_at).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    : '';
 
   return (
     <div className="space-y-4">
@@ -218,110 +229,128 @@ export const VideoPlayerCard: React.FC<VideoPlayerCardProps> = ({
             <div className="flex items-center space-x-2">
               <VideoIcon className="w-4 h-4 text-safehome-muted" />
               <span className="text-xs font-semibold text-safehome-text truncate max-w-xs">
-                {activeVideo?.original_filename || 'front_door_recording.mp4'}
+                {activeVideo?.original_filename || 'No video active'}
               </span>
             </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="p-1 rounded-lg text-safehome-muted hover:text-safehome-text hover:bg-safehome-bg transition-colors"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-              {showMenu && (
-                <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-safehome-border py-1 z-30 text-xs">
-                  <a
-                    href={videoSrc}
-                    download
-                    className="block px-3 py-1.5 text-safehome-text hover:bg-safehome-bg"
-                  >
-                    Download Clip
-                  </a>
-                  <button
-                    onClick={() => {
-                      if (activeVideo) api.deleteVideo(activeVideo.id);
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-safehome-red hover:bg-safehome-redLight"
-                  >
-                    Delete Video
-                  </button>
-                </div>
-              )}
-            </div>
+            {activeVideo && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-1 rounded-lg text-safehome-muted hover:text-safehome-text hover:bg-safehome-bg transition-colors"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+                {showMenu && (
+                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-safehome-border py-1 z-30 text-xs">
+                    <a
+                      href={videoSrc}
+                      download
+                      className="block px-3 py-1.5 text-safehome-text hover:bg-safehome-bg"
+                    >
+                      Download Clip
+                    </a>
+                    <button
+                      onClick={() => {
+                        if (activeVideo) api.deleteVideo(activeVideo.id);
+                        setShowMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-safehome-red hover:bg-safehome-redLight"
+                    >
+                      Delete Video
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Video Player Box with Security Camera Overlay */}
           <div className="relative bg-[#0F1713] aspect-video flex items-center justify-center overflow-hidden">
-            <video
-              ref={videoRef}
-              src={videoSrc}
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={() => setIsPlaying(false)}
-              muted={isMuted}
-              playsInline
-              className="w-full h-full object-cover"
-            />
+            {activeVideo ? (
+              <>
+                <video
+                  ref={videoRef}
+                  src={videoSrc}
+                  onTimeUpdate={handleTimeUpdate}
+                  onEnded={() => setIsPlaying(false)}
+                  muted={isMuted}
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
 
-            {/* Security Camera Timestamp Overlay (Top Right like screenshot) */}
-            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-xs text-white text-[11px] font-mono px-2.5 py-1 rounded-md border border-white/10 shadow-xs pointer-events-none">
-              Oct 18, 2026 04:32:15 PM
-            </div>
+                {/* Security Camera Timestamp Overlay */}
+                {formattedDate && (
+                  <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-xs text-white text-[11px] font-mono px-2.5 py-1 rounded-md border border-white/10 shadow-xs pointer-events-none">
+                    {formattedDate}
+                  </div>
+                )}
 
-            {/* Click to Play Overlay if paused */}
-            {!isPlaying && (
-              <button
-                onClick={togglePlay}
-                className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-safehome-primary/80 hover:bg-safehome-primary text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105"
-              >
-                <Play className="w-6 h-6 ml-0.5" />
-              </button>
+                {/* Click to Play Overlay if paused */}
+                {!isPlaying && (
+                  <button
+                    onClick={togglePlay}
+                    className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-safehome-primary/80 hover:bg-safehome-primary text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105"
+                  >
+                    <Play className="w-6 h-6 ml-0.5" />
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-white/70">
+                <VideoIcon className="w-12 h-12 text-white/30 mb-2" />
+                <p className="text-sm font-semibold text-white">No Footage Loaded</p>
+                <p className="text-xs text-white/50 max-w-xs mt-1">
+                  Upload a security video file to initiate automated motion and vision analysis.
+                </p>
+              </div>
             )}
 
             {/* Bottom Scrubber & Custom Player Controls Bar */}
-            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-6 flex items-center space-x-3 text-white">
-              {/* Play/Pause Button */}
-              <button
-                onClick={togglePlay}
-                className="p-1 hover:text-safehome-primary transition-colors focus:outline-none"
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              </button>
+            {activeVideo && (
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-6 flex items-center space-x-3 text-white">
+                {/* Play/Pause Button */}
+                <button
+                  onClick={togglePlay}
+                  className="p-1 hover:text-safehome-primary transition-colors focus:outline-none"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
 
-              {/* Progress Bar / Scrubber */}
-              <div className="flex-1 flex items-center">
-                <input
-                  type="range"
-                  min="0"
-                  max={duration || 20}
-                  step="0.1"
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="w-full h-1 bg-white/30 rounded-lg cursor-pointer accent-[#168653]"
-                />
+                {/* Progress Bar / Scrubber */}
+                <div className="flex-1 flex items-center">
+                  <input
+                    type="range"
+                    min="0"
+                    max={duration || 20}
+                    step="0.1"
+                    value={currentTime}
+                    onChange={handleSeek}
+                    className="w-full h-1 bg-white/30 rounded-lg cursor-pointer accent-[#168653]"
+                  />
+                </div>
+
+                {/* Timestamp Counter */}
+                <div className="text-[11px] font-medium font-mono text-white/90">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </div>
+
+                {/* Volume Button */}
+                <button
+                  onClick={toggleMute}
+                  className="p-1 hover:text-safehome-primary transition-colors focus:outline-none"
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+
+                {/* Fullscreen Button */}
+                <button
+                  onClick={toggleFullScreen}
+                  className="p-1 hover:text-safehome-primary transition-colors focus:outline-none"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
               </div>
-
-              {/* Timestamp Counter */}
-              <div className="text-[11px] font-medium font-mono text-white/90">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </div>
-
-              {/* Volume Button */}
-              <button
-                onClick={toggleMute}
-                className="p-1 hover:text-safehome-primary transition-colors focus:outline-none"
-              >
-                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
-
-              {/* Fullscreen Button */}
-              <button
-                onClick={toggleFullScreen}
-                className="p-1 hover:text-safehome-primary transition-colors focus:outline-none"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </div>

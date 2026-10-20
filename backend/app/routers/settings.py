@@ -97,32 +97,34 @@ def get_storage_stats(db: Session = Depends(get_db)):
 @router.post("/reset-demo-data")
 def reset_demo_data(delete_user_files: bool = False, db: Session = Depends(get_db)):
     """
-    Resets demonstration data to default demo state without deleting user files
-    unless explicitly requested.
+    Cleans any lingering demonstration records from the database while preserving
+    all genuine user uploads and real analysis records.
+    Never seeds fake data in production.
     """
-    # Delete demo events and demo summaries
     db.query(Event).filter(Event.is_demo == True).delete()
     db.query(AISummary).filter(AISummary.is_demo == True).delete()
-    db.query(Notification).delete()
+    db.query(Video).filter(Video.is_demo == True).delete()
+    db.query(RingDevice).filter(RingDevice.is_simulator == True).delete()
+    db.query(Notification).filter(Notification.notification_type == "test_fixture").delete()
 
     if delete_user_files:
-        # Delete user videos as well
         user_videos = db.query(Video).filter(Video.is_demo == False).all()
         for v in user_videos:
             if os.path.exists(v.file_path):
-                os.remove(v.file_path)
+                try:
+                    os.remove(v.file_path)
+                except Exception:
+                    pass
             f_dir = os.path.join(settings.FRAMES_DIR, f"vid_{v.id}")
             if os.path.exists(f_dir):
-                shutil.rmtree(f_dir)
+                try:
+                    shutil.rmtree(f_dir)
+                except Exception:
+                    pass
             db.delete(v)
 
     db.commit()
-
-    # Re-seed demo video & events
-    from ..main import seed_demo_data
-    seed_demo_data(db)
-
-    return {"message": "Demo data successfully reset to pristine state"}
+    return {"message": "Demo data cleaned. Real user records preserved.", "status": "success"}
 
 @router.post("/enforce-retention")
 def enforce_retention(db: Session = Depends(get_db)):

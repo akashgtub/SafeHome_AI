@@ -16,9 +16,13 @@ interface VideoAnalysisDetailsCardProps {
   details?: {
     video_duration: string;
     frames_analyzed: string;
+    frames_sampled?: number;
     objects_detected: string;
     analysis_model: string;
+    analysis_mode?: string;
+    analysis_status?: string;
     processed_at: string;
+    error_message?: string;
   };
   summaryId?: number;
 }
@@ -31,43 +35,19 @@ export const VideoAnalysisDetailsCard: React.FC<VideoAnalysisDetailsCardProps> =
   const [downloaded, setDownloaded] = useState(false);
 
   const handleDownloadReport = async () => {
+    if (!summaryId) return;
     setDownloading(true);
     try {
-      if (summaryId) {
-        const res = await api.exportSummary(summaryId, 'markdown');
-        const blob = new Blob([res.content], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = res.filename || 'SafeHome_Report.md';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        // Fallback demo report download
-        const demoContent = `# SafeHome AI — Security Intelligence Report
-Generated: Oct 18, 2026 04:35 PM
-Analysis Model: Vision AI (Local)
-Video Duration: 00:20 | Frames Analyzed: 60 frames
-Objects Detected: Person, Vehicle, Door
-
-## Executive Summary
-A person appears near the front door between 00:04 and 00:11. The individual looks at the door and then leaves the area. No additional information is available to determine their identity or purpose.
-
-## Action Recommendation
-Review Recommended - Medium Priority. Activity was observed near the entrance door. This is not a confirmed threat.
-`;
-        const blob = new Blob([demoContent], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'SafeHome_Security_Report.md';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      const res = await api.exportSummary(summaryId, 'markdown');
+      const blob = new Blob([res.content], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.filename || 'SafeHome_Report.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       setDownloaded(true);
       setTimeout(() => setDownloaded(false), 3000);
     } catch (e) {
@@ -77,30 +57,56 @@ Review Recommended - Medium Priority. Activity was observed near the entrance do
     }
   };
 
+  if (!details) {
+    return (
+      <div className="bg-white rounded-2xl p-6 border border-safehome-border shadow-card flex flex-col justify-between h-full text-center">
+        <div>
+          <div className="flex items-center space-x-2 pb-3 border-b border-safehome-border/60">
+            <div className="w-8 h-8 rounded-xl bg-[#E7F6EC] text-safehome-primary flex items-center justify-center">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <h3 className="text-sm font-bold text-safehome-text">Video Analysis Details</h3>
+          </div>
+          <div className="py-8">
+            <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+            <h4 className="text-sm font-semibold text-safehome-text">No Analysis Metrics</h4>
+            <p className="text-xs text-safehome-muted mt-1 max-w-xs mx-auto">
+              Frames, duration, and detection metrics will appear here after video analysis completes.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isCompleted = details.analysis_status === 'completed';
+  const isFailed = details.analysis_status === 'failed';
+
   const rows = [
     {
       label: 'Video Duration',
-      value: details?.video_duration || '00:20',
+      value: details.video_duration || '--',
       icon: PlaySquare,
     },
     {
-      label: 'Frames Analyzed',
-      value: details?.frames_analyzed || '60 frames',
+      label: 'Frames Sampled',
+      value: details.frames_analyzed || '--',
       icon: Copy,
     },
     {
-      label: 'Objects Detected',
-      value: details?.objects_detected || 'Person, Vehicle, Door',
+      label: 'Analysis Status',
+      value: isCompleted ? 'Completed' : (isFailed ? 'Failed' : 'Processing'),
       icon: Target,
+      highlight: isCompleted ? 'text-safehome-primary' : (isFailed ? 'text-safehome-red' : 'text-safehome-amber')
     },
     {
-      label: 'Analysis Model',
-      value: details?.analysis_model || 'Vision AI (Local)',
+      label: 'Analysis Mode',
+      value: details.analysis_mode || details.analysis_model || 'Local Edge CV',
       icon: Cpu,
     },
     {
       label: 'Processed At',
-      value: details?.processed_at || 'Oct 18, 2026 04:35 PM',
+      value: details.processed_at || '--',
       icon: Clock,
     },
   ];
@@ -109,11 +115,18 @@ Review Recommended - Medium Priority. Activity was observed near the entrance do
     <div className="bg-white rounded-2xl p-5 border border-safehome-border shadow-card flex flex-col justify-between">
       <div>
         {/* Header */}
-        <div className="flex items-center space-x-2 pb-3 border-b border-safehome-border/60">
-          <div className="w-8 h-8 rounded-xl bg-[#E7F6EC] text-safehome-primary flex items-center justify-center">
-            <BarChart3 className="w-4 h-4" />
+        <div className="flex items-center justify-between pb-3 border-b border-safehome-border/60">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-xl bg-[#E7F6EC] text-safehome-primary flex items-center justify-center">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <h3 className="text-sm font-bold text-safehome-text">Video Analysis Details</h3>
           </div>
-          <h3 className="text-sm font-bold text-safehome-text">Video Analysis Details</h3>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+            isCompleted ? 'bg-[#E7F6EC] text-safehome-primary' : (isFailed ? 'bg-safehome-redLight text-safehome-red' : 'bg-gray-100 text-gray-600')
+          }`}>
+            {details.analysis_status ? details.analysis_status.toUpperCase() : 'QUEUED'}
+          </span>
         </div>
 
         {/* Metadata List */}
@@ -140,8 +153,12 @@ Review Recommended - Medium Priority. Activity was observed near the entrance do
       {/* Action Button: Download Report (PDF/MD) */}
       <button
         onClick={handleDownloadReport}
-        disabled={downloading}
-        className="w-full mt-5 py-2.5 bg-safehome-primary hover:bg-safehome-deep text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all"
+        disabled={downloading || !summaryId}
+        className={`w-full mt-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-all ${
+          !summaryId
+            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+            : 'bg-safehome-primary hover:bg-safehome-deep text-white'
+        }`}
       >
         {downloaded ? (
           <>
@@ -151,7 +168,7 @@ Review Recommended - Medium Priority. Activity was observed near the entrance do
         ) : (
           <>
             <Download className="w-4 h-4" />
-            <span>{downloading ? 'Exporting...' : 'Download Report (PDF)'}</span>
+            <span>{downloading ? 'Exporting...' : summaryId ? 'Download Report (PDF)' : 'Report Unavailable'}</span>
           </>
         )}
       </button>

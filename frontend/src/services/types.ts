@@ -18,7 +18,8 @@ export interface Video {
 export interface SecurityEvent {
   id: number;
   video_id?: number;
-  source: 'uploaded_video' | 'ring_integration' | 'simulator';
+  source: string;
+  source_type?: string;
   category: string;
   title: string;
   description: string;
@@ -32,7 +33,9 @@ export interface SecurityEvent {
   priority_reason?: string;
   review_status: 'Pending Review' | 'Reviewed' | 'Acknowledged' | 'Dismissed';
   location: string;
-  confidence: number;
+  confidence?: number | null;
+  uncertainty?: string;
+  detection_mode?: 'Local Motion Analysis' | 'AI Visual Analysis' | 'Ring Integration Event' | string;
   raw_evidence?: string;
   is_demo: boolean;
 }
@@ -45,11 +48,13 @@ export interface AISummary {
   time_range: string;
   evidence?: string;
   unknowns?: string;
+  uncertainty_limitations?: string;
   review_rationale?: string;
   suggested_action?: string;
   status: string;
   model_used: string;
   objects_detected: string;
+  frames_sampled?: number;
   created_at: string;
   updated_at: string;
   is_demo: boolean;
@@ -94,9 +99,13 @@ export interface DashboardStats {
   analysis_details?: {
     video_duration: string;
     frames_analyzed: string;
+    frames_sampled?: number;
     objects_detected: string;
     analysis_model: string;
+    analysis_mode?: string;
+    analysis_status?: string;
     processed_at: string;
+    error_message?: string;
   };
   priority_distribution: {
     Low: number;

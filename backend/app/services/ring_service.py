@@ -101,14 +101,17 @@ class RingService:
         ]
 
     @classmethod
-    def ingest_webhook_event(cls, db: Session, payload: Dict[str, Any]) -> Event:
+    def ingest_webhook_event(
+        cls,
+        db: Session,
+        payload: Dict[str, Any],
+        is_simulator: bool = False
+    ) -> Event:
         """
         Normalizes Amazon Vision / Ring webhook events into the unified SafeHome Event schema.
-        Handles event types:
-        - 'motion': Motion detected in camera zone
-        - 'ding': Doorbell button pressed
-        - 'person': Person identified by Ring CV
-        - 'package_delivered': Package dropped off
+        Handles event types: 'motion', 'ding', 'person', 'package_delivered'.
+        Simulator events are isolated (source_type='test_fixture', is_demo=True)
+        and NEVER create notifications in the production user notification center.
         """
         event_type = payload.get("event_type") or payload.get("type", "motion")
         device_id = payload.get("device_id", "ring-doorbell-pro-01")
@@ -140,10 +143,24 @@ class RingService:
             priority = "Low"
             priority_reason = "General motion detection within configured motion zone."
 
+        if is_simulator:
+            source = "simulator"
+            source_type = "test_fixture"
+            title_prefix = "[Simulated] "
+            raw_evidence = f"[Sandbox Simulation] Dispatched via Ring Simulator ({event_type}) on device {device_id}."
+            dedup_key = f"sim_{device_id}_{event_type}_{int(now.timestamp())}"
+        else:
+            source = "ring_integration"
+            source_type = "ring_integration"
+            title_prefix = ""
+            raw_evidence = f"Ingested from verified Amazon Vision API Webhook ({event_type}) on device {device_id}."
+            dedup_key = f"ring_{device_id}_{payload.get('event_id', int(now.timestamp()))}"
+
         event = Event(
-            source="ring_integration",
+            source=source,
+            source_type=source_type,
             category=category,
-            title=title,
+            title=f"{title_prefix}{title}",
             description=description,
             start_time="00:00",
             end_time="00:15",
@@ -155,25 +172,31 @@ class RingService:
             review_status="Pending Review",
             location=location,
             confidence=0.96,
-            raw_evidence=f"Ingested from Amazon Vision API Webhook ({event_type}) on device {device_id}.",
-            is_demo=settings.RING_SIMULATOR_MODE
+            raw_evidence=raw_evidence,
+            is_demo=is_simulator,
+            dedup_key=dedup_key
         )
 
         db.add(event)
         db.commit()
         db.refresh(event)
 
-        # Generate in-app notification
-        notification = Notification(
-            event_id=event.id,
-            title=f"Ring Alert: {title}",
-            message=description,
-            priority=priority,
-            is_read=False,
-            is_resolved=False,
-            created_at=now
-        )
-        db.add(notification)
-        db.commit()
+        # Only genuine non-simulator partner webhook events create in-app notifications
+        if not is_simulator:
+            notif_dedup = f"notif_ring_{event.id}"
+            if not db.query(Notification).filter(Notification.dedup_key == notif_dedup).first():
+                notification = Notification(
+                    event_id=event.id,
+                    notification_type="ring_integration",
+                    title=f"Ring Alert: {title}",
+                    message=description,
+                    priority=priority,
+                    is_read=False,
+                    is_resolved=False,
+                    created_at=now,
+                    dedup_key=notif_dedup
+                )
+                db.add(notification)
+                db.commit()
 
         return event

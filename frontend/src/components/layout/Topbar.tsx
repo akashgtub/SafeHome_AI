@@ -7,7 +7,7 @@ interface TopbarProps {
   onSearch?: (query: string) => void;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ unreadCount = 3, onSearch }) => {
+export const Topbar: React.FC<TopbarProps> = ({ unreadCount = 0, onSearch }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const navigate = useNavigate();

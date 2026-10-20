@@ -43,8 +43,40 @@ class VideoProcessor:
             "duration": round(duration, 2)
         }
 
-    @staticmethod
+    @classmethod
+    def anonymize_frame(cls, frame: np.ndarray, face_cascade=None) -> Tuple[np.ndarray, int]:
+        """
+        Detects faces using Haar cascade and applies strong Gaussian blur to each face region
+        to protect occupant privacy before frames are displayed or sent to external vision providers.
+        Returns (anonymized_frame, face_count).
+        """
+        output = frame.copy()
+        if face_cascade is None:
+            try:
+                face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+            except Exception as e:
+                print(f"[VideoProcessor] Warning: Could not initialize face cascade: {e}")
+                face_cascade = None
+
+        if face_cascade is None or face_cascade.empty():
+            return output, 0
+
+        try:
+            gray = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20))
+            for (fx, fy, fw, fh) in faces:
+                face_roi = output[fy:fy+fh, fx:fx+fw]
+                ksize = max(25, (fw // 2) * 2 + 1)
+                blurred_roi = cv2.GaussianBlur(face_roi, (ksize, ksize), 45)
+                output[fy:fy+fh, fx:fx+fw] = blurred_roi
+            return output, len(faces)
+        except Exception as e:
+            print(f"[VideoProcessor] Face blurring error: {e}")
+            return output, 0
+
+    @classmethod
     def sample_frames_and_detect_motion(
+        cls,
         video_id: int,
         file_path: str,
         sample_interval_sec: float = 1.0,
@@ -119,21 +151,12 @@ class VideoProcessor:
                 frame_filename = f"frame_{mins:02d}_{secs:02d}.jpg"
                 frame_out_path = os.path.join(video_frame_dir, frame_filename)
 
-                # Draw subtle indicator if motion is significant
                 save_frame = frame.copy()
 
                 # Facial Anonymization Blur (if enabled in privacy preferences)
-                if blur_faces and face_cascade is not None and not face_cascade.empty():
-                    try:
-                        gray = cv2.cvtColor(save_frame, cv2.COLOR_BGR2GRAY)
-                        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(20, 20))
-                        for (fx, fy, fw, fh) in faces:
-                            face_roi = save_frame[fy:fy+fh, fx:fx+fw]
-                            ksize = max(21, (fw // 2) * 2 + 1)
-                            blurred_roi = cv2.GaussianBlur(face_roi, (ksize, ksize), 30)
-                            save_frame[fy:fy+fh, fx:fx+fw] = blurred_roi
-                    except Exception as e:
-                        pass
+                # Strictly applied to the frame before any cloud transmission
+                if blur_faces:
+                    save_frame, _ = cls.anonymize_frame(save_frame, face_cascade)
 
                 if motion_detected and bounding_boxes:
                     for b in bounding_boxes[:3]:
@@ -152,6 +175,7 @@ class VideoProcessor:
                     "motion_detected": motion_detected,
                     "motion_score": motion_score,
                     "bounding_boxes": bounding_boxes,
+                    "faces_blurred": blur_faces,
                     "frame_width": frame.shape[1],
                     "frame_height": frame.shape[0]
                 })

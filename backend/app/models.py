@@ -45,7 +45,9 @@ class Event(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     video_id = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True)
+    job_id = Column(Integer, ForeignKey("analysis_jobs.id", ondelete="SET NULL"), nullable=True)
     source = Column(String(50), default="uploaded_video") # uploaded_video, ring_integration, simulator
+    source_type = Column(String(50), default="video_upload") # video_upload, ring_integration, test_fixture
     category = Column(String(50), nullable=False) # Person, Vehicle, Animal, Package, Motion, Door
     title = Column(String(150), nullable=False)
     description = Column(Text, nullable=False)
@@ -61,7 +63,10 @@ class Event(Base):
     location = Column(String(100), default="Front Door")
     confidence = Column(Float, default=0.9)
     raw_evidence = Column(Text, nullable=True) # JSON or descriptive observations
+    uncertainty = Column(Text, nullable=True) # visual uncertainty notes
+    detection_mode = Column(String(50), default="AI Visual Analysis") # "Local Motion Analysis", "AI Visual Analysis", "Ring Integration Event"
     is_demo = Column(Boolean, default=False)
+    dedup_key = Column(String(128), unique=True, nullable=True, index=True)
 
     video = relationship("Video", back_populates="events")
     reviews = relationship("ReviewRecord", back_populates="event", cascade="all, delete-orphan")
@@ -77,11 +82,13 @@ class AISummary(Base):
     time_range = Column(String(50), default="00:00 - 00:20")
     evidence = Column(Text, nullable=True)
     unknowns = Column(Text, nullable=True)
+    uncertainty_limitations = Column(Text, nullable=True)
     review_rationale = Column(Text, nullable=True)
     suggested_action = Column(Text, nullable=True)
     status = Column(String(50), default="Analyzed") # Analyzed, Pending, Needs Review
     model_used = Column(String(100), default="Vision AI (Local)")
     objects_detected = Column(String(255), default="Person, Door")
+    frames_sampled = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
     is_demo = Column(Boolean, default=False)
@@ -105,12 +112,16 @@ class Notification(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(Integer, ForeignKey("events.id", ondelete="SET NULL"), nullable=True)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True)
+    job_id = Column(Integer, ForeignKey("analysis_jobs.id", ondelete="SET NULL"), nullable=True)
+    notification_type = Column(String(50), default="system") # video_upload, analysis, security_event, ring_integration
     title = Column(String(200), nullable=False)
     message = Column(Text, nullable=False)
     priority = Column(String(20), default="Low") # Low, Medium, High
     is_read = Column(Boolean, default=False)
     is_resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    dedup_key = Column(String(128), unique=True, nullable=True, index=True)
 
     event = relationship("Event", back_populates="notifications")
 
@@ -127,6 +138,7 @@ class RingDevice(Base):
     firmware_version = Column(String(50), default="v4.2.1-amazon")
     last_sync_at = Column(DateTime, default=datetime.datetime.utcnow)
     is_simulator = Column(Boolean, default=True)
+    source_type = Column(String(50), default="ring_partner") # ring_partner, test_fixture
 
 class PrivacySetting(Base):
     __tablename__ = "privacy_settings"

@@ -93,8 +93,12 @@ export const AlertsPage: React.FC = () => {
         ) : notifications.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-safehome-border">
             <CheckCircle2 className="w-8 h-8 text-safehome-primary mx-auto mb-2" />
-            <h4 className="text-sm font-bold text-safehome-text">All Caught Up!</h4>
-            <p className="text-xs text-safehome-muted mt-1">No unread security alerts pending review.</p>
+            <h4 className="text-sm font-bold text-safehome-text">
+              {unreadOnly ? 'All Caught Up!' : 'No Notifications'}
+            </h4>
+            <p className="text-xs text-safehome-muted mt-1">
+              {unreadOnly ? 'No unread security alerts pending review.' : 'No alerts recorded yet. Notifications will appear when videos are uploaded or security events occur.'}
+            </p>
           </div>
         ) : (
           notifications.map((n) => {

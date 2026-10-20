@@ -5,7 +5,7 @@ import { Topbar } from './Topbar';
 import { api } from '../../services/api';
 
 export const MainLayout: React.FC = () => {
-  const [unreadCount, setUnreadCount] = useState<number>(3);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchUnread = async () => {

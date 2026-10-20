@@ -6,7 +6,10 @@ import {
   CheckCircle2,
   Clock,
   MapPin,
-  Play
+  Play,
+  Sparkles,
+  Activity,
+  BellRing
 } from 'lucide-react';
 import { SecurityEvent } from '../../services/types';
 import { API_BASE_URL, api } from '../../services/api';
@@ -42,69 +45,21 @@ export const DetectedEventsTimeline: React.FC<DetectedEventsTimelineProps> = ({
     }
   };
 
-  // Fallback default events matching screenshot if empty
-  const displayEvents: SecurityEvent[] =
-    events && events.length > 0
-      ? events.slice(0, 3)
-      : [
-          {
-            id: 1,
-            category: 'Person',
-            title: 'Person detected',
-            description: 'A person appears near the front entrance.',
-            start_time: '00:04',
-            end_time: '00:11',
-            start_seconds: 4.0,
-            end_seconds: 11.0,
-            priority: 'Medium' as const,
-            priority_reason: 'Activity was observed near the entrance. This is not a confirmed threat.',
-            review_status: 'Pending Review' as const,
-            location: 'Front Door',
-            confidence: 0.95,
-            source: 'uploaded_video' as const,
-            timestamp: new Date().toISOString(),
-            is_demo: true,
-            thumbnail_path: undefined,
-          },
-          {
-            id: 2,
-            category: 'Vehicle',
-            title: 'Vehicle detected',
-            description: 'A vehicle passes by on the street.',
-            start_time: '00:12',
-            end_time: '00:16',
-            start_seconds: 12.0,
-            end_seconds: 16.0,
-            priority: 'Low' as const,
-            priority_reason: 'A vehicle passes by on the street.',
-            review_status: 'Reviewed' as const,
-            location: 'Street View',
-            confidence: 0.91,
-            source: 'uploaded_video' as const,
-            timestamp: new Date().toISOString(),
-            is_demo: true,
-            thumbnail_path: undefined,
-          },
-          {
-            id: 3,
-            category: 'Motion',
-            title: 'No significant activity',
-            description: 'No notable movement detected.',
-            start_time: '00:17',
-            end_time: '00:20',
-            start_seconds: 17.0,
-            end_seconds: 20.0,
-            priority: 'Low' as const,
-            priority_reason: 'No notable movement detected.',
-            review_status: 'Reviewed' as const,
-            location: 'Front Door',
-            confidence: 0.99,
-            source: 'uploaded_video' as const,
-            timestamp: new Date().toISOString(),
-            is_demo: true,
-            thumbnail_path: undefined,
-          },
-        ];
+  const displayEvents: SecurityEvent[] = events ? events.slice(0, 10) : [];
+
+  if (displayEvents.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-6 border border-safehome-border shadow-card text-center">
+        <div className="w-10 h-10 rounded-xl bg-[#E7F6EC] text-safehome-primary flex items-center justify-center mx-auto mb-3">
+          <VideoIcon className="w-5 h-5" />
+        </div>
+        <h3 className="text-sm font-bold text-safehome-text">No Detected Events</h3>
+        <p className="text-xs text-safehome-muted mt-1 max-w-sm mx-auto">
+          No security or motion events have been recorded yet. Upload a video to detect safety events.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl p-5 border border-safehome-border shadow-card">
@@ -123,7 +78,7 @@ export const DetectedEventsTimeline: React.FC<DetectedEventsTimelineProps> = ({
 
       {/* Timeline items */}
       <div className="mt-4 space-y-3">
-        {displayEvents.map((ev, index) => {
+        {displayEvents.map((ev) => {
           const isMedium = ev.priority === 'Medium';
           const isHigh = ev.priority === 'High';
           const priorityBadgeClass = isHigh
@@ -131,6 +86,21 @@ export const DetectedEventsTimeline: React.FC<DetectedEventsTimelineProps> = ({
             : isMedium
             ? 'bg-safehome-amberLight text-[#B87A14]'
             : 'bg-[#E7F6EC] text-safehome-primary';
+
+          // Separate detection source labels
+          let sourceLabel = 'AI Visual Analysis';
+          let sourceBadgeClass = 'bg-[#E7F6EC] text-safehome-primary border-[#B8D7C2]';
+          let SourceIcon = Sparkles;
+
+          if (ev.detection_mode === 'Local Motion Analysis' || ev.source === 'local_motion_cv' || ev.category === 'Motion') {
+            sourceLabel = 'Local Motion Analysis';
+            sourceBadgeClass = 'bg-gray-100 text-gray-700 border-gray-200';
+            SourceIcon = Activity;
+          } else if (ev.detection_mode === 'Ring Integration Event' || ev.source === 'ring_integration' || ev.source === 'simulator') {
+            sourceLabel = 'Ring Integration Event';
+            sourceBadgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
+            SourceIcon = BellRing;
+          }
 
           const isExpanded = expandedId === ev.id;
           const thumbnailSrc = ev.thumbnail_path
@@ -174,9 +144,17 @@ export const DetectedEventsTimeline: React.FC<DetectedEventsTimelineProps> = ({
 
                   {/* Title & Description */}
                   <div className="min-w-0 flex-1">
-                    <span className="text-[11px] font-mono text-safehome-muted font-medium">
-                      {ev.start_time} - {ev.end_time}
-                    </span>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[11px] font-mono text-safehome-muted font-medium">
+                        {ev.start_time} - {ev.end_time}
+                      </span>
+                      {/* Detection Mode Badge */}
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md border flex items-center gap-1 ${sourceBadgeClass}`}>
+                        <SourceIcon className="w-3 h-3" />
+                        <span>{sourceLabel}</span>
+                      </span>
+                    </div>
+
                     <h4 className="text-xs font-bold text-safehome-text truncate">
                       {ev.title}
                     </h4>
@@ -207,7 +185,11 @@ export const DetectedEventsTimeline: React.FC<DetectedEventsTimelineProps> = ({
               {/* Expanded details */}
               {isExpanded && (
                 <div className="px-4 pb-3.5 pt-1 border-t border-safehome-border/60 bg-[#FAFCFA] text-xs space-y-2.5">
-                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                  <div className="grid grid-cols-3 gap-2 text-[11px] pt-1">
+                    <div>
+                      <span className="text-safehome-muted">Category:</span>{' '}
+                      <span className="font-semibold text-safehome-text">{ev.category}</span>
+                    </div>
                     <div>
                       <span className="text-safehome-muted">Location:</span>{' '}
                       <span className="font-semibold text-safehome-text">{ev.location}</span>
@@ -223,6 +205,20 @@ export const DetectedEventsTimeline: React.FC<DetectedEventsTimelineProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {ev.raw_evidence && (
+                    <div className="p-2 rounded-lg bg-white border border-safehome-border/80 text-[11px]">
+                      <span className="font-bold text-safehome-deep">Visual Evidence:</span>{' '}
+                      <span className="text-safehome-text/90">{ev.raw_evidence}</span>
+                    </div>
+                  )}
+
+                  {ev.uncertainty && (
+                    <div className="p-2 rounded-lg bg-gray-50 border border-gray-200 text-[11px] text-gray-600">
+                      <span className="font-bold text-gray-700">Uncertainty & Limitations:</span>{' '}
+                      <span>{ev.uncertainty}</span>
+                    </div>
+                  )}
 
                   {ev.priority_reason && (
                     <div className="p-2 rounded-lg bg-white border border-safehome-border/80 text-[11px]">

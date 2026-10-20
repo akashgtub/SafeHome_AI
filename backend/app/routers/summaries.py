@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..models import AISummary, Video, AnalysisJob
+from ..models import AISummary, Video, AnalysisJob, PrivacySetting
 from ..schemas import AISummaryResponse, SummaryRegenerateRequest
 from ..services.ai_analyzer import AIAnalyzer
 from ..services.video_processor import VideoProcessor
@@ -39,13 +39,24 @@ async def regenerate_summary(payload: SummaryRegenerateRequest, db: Session = De
     if not video:
         raise HTTPException(status_code=404, detail="No completed video found to regenerate summary for.")
 
+    privacy = db.query(PrivacySetting).first()
+    blur_faces = privacy.blur_faces if privacy else False
+    local_processing_only = privacy.local_processing_only if privacy else False
+
     meta = VideoProcessor.extract_metadata(video.file_path)
-    sampled = VideoProcessor.sample_frames_and_detect_motion(video.id, video.file_path, sample_interval_sec=1.0)
+    sampled = VideoProcessor.sample_frames_and_detect_motion(
+        video.id,
+        video.file_path,
+        sample_interval_sec=1.0,
+        blur_faces=blur_faces
+    )
     
     events_data, summary_data, model_name = await AIAnalyzer.analyze_video_frames(
         video_metadata=meta,
         sampled_frames=sampled,
-        is_demo=video.is_demo
+        is_demo=video.is_demo,
+        local_processing_only=local_processing_only,
+        blur_faces=blur_faces
     )
 
     summary = db.query(AISummary).filter(AISummary.video_id == video.id).first()
@@ -57,10 +68,12 @@ async def regenerate_summary(payload: SummaryRegenerateRequest, db: Session = De
     summary.observations = summary_data.get("observations", "")
     summary.evidence = summary_data.get("evidence", "")
     summary.unknowns = summary_data.get("unknowns", "")
+    summary.uncertainty_limitations = summary_data.get("uncertainty_limitations", summary_data.get("unknowns", ""))
     summary.review_rationale = summary_data.get("review_rationale", "")
     summary.suggested_action = summary_data.get("suggested_action", "")
     summary.model_used = model_name
     summary.objects_detected = summary_data.get("objects_detected", "Person, Door")
+    summary.frames_sampled = summary_data.get("frames_sampled", len(sampled))
     summary.status = "Analyzed"
 
     db.commit()

@@ -121,13 +121,22 @@ Suggested Action: ${selectedSummary.suggested_action}`;
       </div>
 
       {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Side: Summary selector list (4 cols) */}
-        <div className="lg:col-span-4 bg-white rounded-2xl p-5 border border-safehome-border shadow-card space-y-3">
-          <h3 className="text-xs font-bold text-safehome-text uppercase tracking-wide">
-            Available Reports ({summaries.length})
-          </h3>
-          <div className="space-y-2">
+      {summaries.length === 0 && !loading ? (
+        <div className="bg-white rounded-2xl p-12 text-center border border-safehome-border shadow-card">
+          <Bot className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+          <h3 className="text-sm font-bold text-safehome-text">No AI Summaries Generated Yet</h3>
+          <p className="text-xs text-safehome-muted mt-1 max-w-sm mx-auto">
+            Upload security videos and run analysis to produce evidence-grounded AI intelligence reports.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Side: Summary selector list (4 cols) */}
+          <div className="lg:col-span-4 bg-white rounded-2xl p-5 border border-safehome-border shadow-card space-y-3">
+            <h3 className="text-xs font-bold text-safehome-text uppercase tracking-wide">
+              Available Reports ({summaries.length})
+            </h3>
+            <div className="space-y-2">
             {summaries.map((s) => (
               <div
                 key={s.id}
@@ -245,6 +254,7 @@ Suggested Action: ${selectedSummary.suggested_action}`;
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

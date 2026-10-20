@@ -126,8 +126,10 @@ export const api = {
     return res.data;
   },
 
-  getRingDevices: async (): Promise<RingDevice[]> => {
-    const res = await client.get('/api/ring/devices');
+  getRingDevices: async (includeSimulator: boolean = false): Promise<RingDevice[]> => {
+    const res = await client.get('/api/ring/devices', {
+      params: { include_simulator: includeSimulator },
+    });
     return res.data;
   },
 

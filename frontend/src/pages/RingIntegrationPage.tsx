@@ -104,10 +104,14 @@ export const RingIntegrationPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-safehome-text">
-                {statusInfo?.message || 'Connected via Amazon Vision Partner API (Sandbox / Simulator Mode)'}
+                {statusInfo?.message || (statusInfo?.connected ? 'Connected to Amazon Vision Partner API (Live)' : 'Ring Integration Not Connected')}
               </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F6EC] text-safehome-primary">
-                Online
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                statusInfo?.connected
+                  ? 'bg-[#E7F6EC] text-safehome-primary'
+                  : 'bg-gray-100 text-gray-500'
+              }`}>
+                {statusInfo?.connected ? 'Online' : 'Not Connected'}
               </span>
             </div>
             <p className="text-xs text-safehome-muted mt-1">
@@ -119,11 +123,11 @@ export const RingIntegrationPage: React.FC = () => {
         <div className="flex items-center gap-4 text-xs font-mono text-safehome-muted">
           <div>
             <span className="block text-[10px] uppercase font-sans font-bold text-safehome-text">Devices</span>
-            <span>{devices.length} Connected</span>
+            <span>{statusInfo?.device_count ?? devices.length} Connected</span>
           </div>
           <div className="border-l border-safehome-border pl-4">
             <span className="block text-[10px] uppercase font-sans font-bold text-safehome-text">Last Sync</span>
-            <span>{statusInfo?.last_sync ? new Date(statusInfo.last_sync).toLocaleTimeString() : 'Just now'}</span>
+            <span>{statusInfo?.last_sync ? new Date(statusInfo.last_sync).toLocaleTimeString() : 'Never'}</span>
           </div>
         </div>
       </div>
@@ -175,57 +179,71 @@ export const RingIntegrationPage: React.FC = () => {
       </div>
 
       {/* Discovered Ring Devices Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {devices.map((dev) => (
-          <div
-            key={dev.id}
-            className="bg-white rounded-2xl p-5 border border-safehome-border shadow-card flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between pb-3 border-b border-safehome-border">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#EBF3FF] text-[#0070BA] flex items-center justify-center">
-                    <BellRing className="w-4 h-4" />
+      {devices.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 border border-safehome-border shadow-card text-center">
+          <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center mx-auto mb-2">
+            <BellRing className="w-5 h-5" />
+          </div>
+          <h4 className="text-sm font-bold text-safehome-text">No Discovered Ring Devices</h4>
+          <p className="text-xs text-safehome-muted mt-1 max-w-md mx-auto">
+            Connect live Ring hardware by setting RING_CLIENT_ID and credentials, or trigger test events using the sandbox controls above.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {devices.map((dev) => (
+            <div
+              key={dev.id}
+              className="bg-white rounded-2xl p-5 border border-safehome-border shadow-card flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between pb-3 border-b border-safehome-border">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-xl bg-[#EBF3FF] text-[#0070BA] flex items-center justify-center">
+                      <BellRing className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold text-safehome-text truncate max-w-[140px]">
+                      {dev.name}
+                    </span>
                   </div>
-                  <span className="text-xs font-bold text-safehome-text truncate max-w-[140px]">
-                    {dev.name}
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E7F6EC] text-safehome-primary">
+                    {dev.status}
                   </span>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E7F6EC] text-safehome-primary">
-                  {dev.status}
+
+                <div className="mt-4 space-y-2 text-xs">
+                  <div className="flex justify-between text-safehome-muted">
+                    <span>Location</span>
+                    <span className="font-semibold text-safehome-text">{dev.location}</span>
+                  </div>
+                  <div className="flex justify-between text-safehome-muted">
+                    <span>Battery</span>
+                    <span className="font-semibold text-safehome-text flex items-center gap-1">
+                      <Battery className="w-3.5 h-3.5 text-safehome-primary" />
+                      {dev.battery_level}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-safehome-muted">
+                    <span>Firmware</span>
+                    <span className="font-mono text-safehome-text">{dev.firmware_version}</span>
+                  </div>
+                  <div className="flex justify-between text-safehome-muted">
+                    <span>Device ID</span>
+                    <span className="font-mono text-[10px] text-safehome-text">{dev.device_id}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-safehome-border flex items-center justify-between text-[11px]">
+                <span className="text-safehome-muted">Mode:</span>
+                <span className="font-semibold text-[#0070BA]">
+                  {dev.is_simulator ? 'Amazon Vision Simulator' : 'Physical Device'}
                 </span>
               </div>
-
-              <div className="mt-4 space-y-2 text-xs">
-                <div className="flex justify-between text-safehome-muted">
-                  <span>Location</span>
-                  <span className="font-semibold text-safehome-text">{dev.location}</span>
-                </div>
-                <div className="flex justify-between text-safehome-muted">
-                  <span>Battery</span>
-                  <span className="font-semibold text-safehome-text flex items-center gap-1">
-                    <Battery className="w-3.5 h-3.5 text-safehome-primary" />
-                    {dev.battery_level}%
-                  </span>
-                </div>
-                <div className="flex justify-between text-safehome-muted">
-                  <span>Firmware</span>
-                  <span className="font-mono text-safehome-text">{dev.firmware_version}</span>
-                </div>
-                <div className="flex justify-between text-safehome-muted">
-                  <span>Device ID</span>
-                  <span className="font-mono text-[10px] text-safehome-text">{dev.device_id}</span>
-                </div>
-              </div>
             </div>
-
-            <div className="mt-4 pt-3 border-t border-safehome-border flex items-center justify-between text-[11px]">
-              <span className="text-safehome-muted">Mode:</span>
-              <span className="font-semibold text-[#0070BA]">Amazon Vision Simulator</span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Developer Setup Instructions & Hackathon Architecture Guide */}
       <div className="bg-white rounded-2xl p-6 border border-safehome-border shadow-card space-y-4">

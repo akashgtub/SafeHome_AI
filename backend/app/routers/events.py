@@ -17,11 +17,14 @@ def get_events(
     source: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     video_id: Optional[int] = Query(None),
+    include_demo: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
 ):
     query = db.query(Event)
+    if not include_demo:
+        query = query.filter(Event.is_demo == False)
 
     if category and category.lower() != "all":
         query = query.filter(Event.category.ilike(f"%{category}%"))

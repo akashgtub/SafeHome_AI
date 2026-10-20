@@ -12,37 +12,43 @@ import {
   Shield,
   Activity,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { api, API_BASE_URL } from '../services/api';
-import { SecurityEvent } from '../services/types';
+import { RingDevice, SecurityEvent } from '../services/types';
 
 export const LiveViewPage: React.FC = () => {
-  const [selectedCam, setSelectedCam] = useState<'front' | 'driveway' | 'backyard'>('front');
+  const [devices, setDevices] = useState<RingDevice[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<RingDevice | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [events, setEvents] = useState<SecurityEvent[]>([]);
   const [simulating, setSimulating] = useState(false);
   const [alertToast, setAlertToast] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const cameras = [
-    { id: 'front' as const, name: 'Front Door Video Doorbell Pro', loc: 'Front Door', status: 'Streaming' },
-    { id: 'driveway' as const, name: 'Driveway Floodlight Cam', loc: 'Driveway', status: 'Online' },
-    { id: 'backyard' as const, name: 'Backyard Stick Up Cam', loc: 'Backyard Patio', status: 'Online' },
-  ];
-
-  const fetchLiveEvents = async () => {
+  const fetchDevicesAndEvents = async () => {
     try {
-      const data = await api.getEvents({ limit: 10 });
-      setEvents(data);
+      const [devList, evList] = await Promise.all([
+        api.getRingDevices(true),
+        api.getEvents({ limit: 10 })
+      ]);
+      setDevices(devList);
+      if (devList.length > 0) {
+        setSelectedDevice((prev) => prev || devList[0]);
+      }
+      setEvents(evList);
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLiveEvents();
-    const interval = setInterval(fetchLiveEvents, 10000);
+    fetchDevicesAndEvents();
+    const interval = setInterval(fetchDevicesAndEvents, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -50,9 +56,9 @@ export const LiveViewPage: React.FC = () => {
     setSimulating(true);
     try {
       const ev = await api.simulateRingEvent(type, location);
-      setAlertToast(`Ring Alert: ${ev.title} at ${location}`);
+      setAlertToast(`Simulator Event Triggered: ${ev.title} at ${location} (Test Mode)`);
       setTimeout(() => setAlertToast(null), 4000);
-      fetchLiveEvents();
+      fetchDevicesAndEvents();
     } catch (e) {
       console.error(e);
     } finally {
@@ -82,7 +88,7 @@ export const LiveViewPage: React.FC = () => {
             className="px-3 py-1.5 rounded-xl bg-safehome-primary text-white text-xs font-semibold hover:bg-safehome-deep transition-all shadow-xs flex items-center gap-1.5"
           >
             <BellRing className="w-3.5 h-3.5" />
-            <span>Simulate Doorbell Ring</span>
+            <span>[Sim] Doorbell Ring</span>
           </button>
           <button
             onClick={() => handleSimulate('motion', 'Front Door')}
@@ -90,65 +96,85 @@ export const LiveViewPage: React.FC = () => {
             className="px-3 py-1.5 rounded-xl bg-white border border-safehome-border text-safehome-text hover:bg-safehome-bg text-xs font-medium transition-all"
           >
             <Activity className="w-3.5 h-3.5 text-safehome-amber" />
-            <span>Simulate Motion</span>
+            <span>[Sim] Motion</span>
           </button>
         </div>
       </div>
 
       {/* Alert Banner if triggered */}
       {alertToast && (
-        <div className="p-3 bg-safehome-amberLight border border-safehome-amber/40 rounded-xl text-xs font-semibold text-[#8C5E13] flex items-center gap-2 animate-bounce">
-          <BellRing className="w-4 h-4 text-safehome-amber" />
+        <div className="p-3 bg-safehome-amberLight border border-safehome-amber/40 rounded-xl text-xs font-semibold text-[#8C5E13] flex items-center gap-2">
+          <BellRing className="w-4 h-4 text-safehome-amber flex-shrink-0" />
           <span>{alertToast}</span>
         </div>
       )}
 
       {/* Camera Selection Tabs */}
-      <div className="flex items-center space-x-2 border-b border-safehome-border pb-2 overflow-x-auto">
-        {cameras.map((cam) => (
-          <button
-            key={cam.id}
-            onClick={() => setSelectedCam(cam.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition-all whitespace-nowrap ${
-              selectedCam === cam.id
-                ? 'bg-safehome-primary text-white shadow-xs'
-                : 'bg-white text-safehome-muted border border-safehome-border hover:bg-safehome-bg'
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                cam.status === 'Streaming' ? 'bg-[#48D38A] animate-ping' : 'bg-safehome-primary'
+      {devices.length > 0 ? (
+        <div className="flex items-center space-x-2 border-b border-safehome-border pb-2 overflow-x-auto">
+          {devices.map((cam) => (
+            <button
+              key={cam.id}
+              onClick={() => setSelectedDevice(cam)}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 transition-all whitespace-nowrap ${
+                selectedDevice?.id === cam.id
+                  ? 'bg-safehome-primary text-white shadow-xs'
+                  : 'bg-white text-safehome-muted border border-safehome-border hover:bg-safehome-bg'
               }`}
-            />
-            <span>{cam.name}</span>
-          </button>
-        ))}
-      </div>
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  cam.status === 'online' ? 'bg-[#48D38A]' : 'bg-gray-400'
+                }`}
+              />
+              <span>{cam.name}</span>
+              {cam.is_simulator && (
+                <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded-md font-normal">
+                  Simulator
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-safehome-bg border border-safehome-border text-xs text-safehome-muted flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-safehome-muted flex-shrink-0" />
+          <span>No physical Ring cameras configured. Connect hardware via Amazon Vision API or use upload analysis.</span>
+        </div>
+      )}
 
       {/* Main Grid: Live Video Feed + Live Event Stream */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Live Feed Screen (8 cols) */}
         <div className="lg:col-span-8 bg-black rounded-2xl overflow-hidden border border-safehome-border shadow-card relative aspect-video flex items-center justify-center">
-          <video
-            src={`${API_BASE_URL}/data/sample/front_door_recording.mp4`}
-            autoPlay
-            loop
-            muted={isMuted}
-            playsInline
-            className="w-full h-full object-cover"
-          />
+          {selectedDevice ? (
+            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-white/70 bg-[#121B16]">
+              <Camera className="w-12 h-12 text-white/30 mb-2" />
+              <p className="text-sm font-semibold text-white">{selectedDevice.name}</p>
+              <p className="text-xs text-white/50 max-w-xs mt-1">
+                {selectedDevice.is_simulator
+                  ? 'Sandbox Simulator Channel — WebRTC Ready'
+                  : 'Live Feed Channel — Amazon Vision Partner Stream'}
+              </p>
+            </div>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-white/70 bg-[#121B16]">
+              <Camera className="w-12 h-12 text-white/30 mb-2" />
+              <p className="text-sm font-semibold text-white">No Camera Selected</p>
+              <p className="text-xs text-white/50 max-w-xs mt-1">
+                Select a connected camera or stream source to monitor live video.
+              </p>
+            </div>
+          )}
 
           {/* Top Live Badges */}
           <div className="absolute top-4 left-4 flex items-center space-x-2">
-            <span className="bg-safehome-red text-white text-[11px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1.5 shadow-xs">
+            <span className="bg-safehome-primary text-white text-[11px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1.5 shadow-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              LIVE
+              {selectedDevice?.is_simulator ? 'SIMULATOR' : 'LIVE'}
             </span>
             <span className="bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono px-2 py-0.5 rounded-md border border-white/10">
-              WebRTC / WHEP (30 FPS)
-            </span>
-            <span className="bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono px-2 py-0.5 rounded-md border border-white/10">
-              HD 1080p
+              WebRTC / WHEP
             </span>
           </div>
 
@@ -191,7 +217,7 @@ export const LiveViewPage: React.FC = () => {
                 Live Event Ticker
               </h3>
               <button
-                onClick={fetchLiveEvents}
+                onClick={fetchDevicesAndEvents}
                 className="p-1 text-safehome-muted hover:text-safehome-text"
               >
                 <RefreshCw className="w-3.5 h-3.5" />

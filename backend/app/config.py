@@ -3,9 +3,9 @@ from pydantic_settings import BaseSettings
 from typing import List
 
 class Settings(BaseSettings):
-    HOST: str = "127.0.0.1"
+    HOST: str = "0.0.0.0"
     PORT: int = 8000
-    DEBUG: bool = True
+    DEBUG: bool = False
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
 
     DATABASE_URL: str = "sqlite:///./data/safehome.db"
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 200
     MAX_VIDEO_DURATION_SECONDS: int = 600
 
-    AI_PROVIDER: str = "mock"  # "mock", "gemini", "openai"
+    AI_PROVIDER: str = "gemini"  # "gemini", "openai", "local"
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-1.5-flash"
     OPENAI_API_KEY: str = ""
@@ -33,8 +33,16 @@ class Settings(BaseSettings):
     AUTO_DELETE_EXPIRED: bool = False
     BLUR_FACES_DEFAULT: bool = False
 
+    # Motion Deduplication & Analysis Tolerances
+    MOTION_GROUPING_TOLERANCE_SECONDS: float = 2.0
+    MIN_MOTION_DURATION_SECONDS: float = 1.0
+    DEMO_MODE_ENABLED: bool = False
+
     class Config:
-        env_file = ".env"
+        env_file = (
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")),
+            ".env"
+        )
         extra = "ignore"
 
     @property

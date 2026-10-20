@@ -114,7 +114,14 @@ export const EventHistoryPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-safehome-border/60">
-              {events.map((e) => (
+              {events.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-safehome-muted">
+                    No security events found. Upload a video to record safety events.
+                  </td>
+                </tr>
+              ) : (
+                events.map((e) => (
                 <tr key={e.id} className="hover:bg-[#FAFCFA] transition-colors">
                   <td className="py-3 px-4 font-mono text-[11px] text-safehome-muted">
                     {e.start_time} - {e.end_time}
@@ -157,7 +164,8 @@ export const EventHistoryPage: React.FC = () => {
                     </span>
                   </td>
                 </tr>
-              ))}
+              ))
+            )}
             </tbody>
           </table>
         </div>

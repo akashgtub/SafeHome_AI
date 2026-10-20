@@ -71,6 +71,7 @@ export const DashboardPage: React.FC = () => {
         <div className="lg:col-span-4 space-y-6">
           <AiSummaryCard
             summary={stats?.active_summary || null}
+            activeVideo={stats?.active_video || null}
             onRefresh={loadDashboardData}
           />
 

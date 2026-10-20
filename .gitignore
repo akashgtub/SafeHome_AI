@@ -23,7 +23,29 @@ wheels/
 .installed.cfg
 *.egg
 .pytest_cache/
-data/safehome.db
+*.log
+
+# Databases & Backups
+data/*.db
+data/*.db-journal
+data/*.db.bak*
+data/test_safehome.db
+data/safehome.db*
+*.sqlite
+*.sqlite3
+
+# Uploaded Media & Processed Keyframes
+data/uploads/*
+!data/uploads/.gitkeep
+data/frames/*
+!data/frames/.gitkeep
+data/sample/*
+!data/sample/.gitkeep
+*.mp4
+*.mov
+*.avi
+*.webm
+*.mkv
 
 # Node / Frontend
 node_modules/
@@ -33,8 +55,20 @@ frontend/dist-ssr/
 .npm
 .eslintcache
 
-# Environment
+# Environment & Secrets (Never commit credentials)
 .env
+.env.*
+*.env
+**/.env
+**/.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# Temporary / Scratch scripts
+inspect_db.py
+scratch/
 
 # OS
 .DS_Store

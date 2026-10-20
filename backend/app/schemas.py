@@ -38,7 +38,9 @@ class EventBase(BaseModel):
     priority_reason: Optional[str] = None
     location: str = "Front Door"
     source: str = "uploaded_video"
-    confidence: float = 0.9
+    confidence: Optional[float] = 0.9
+    uncertainty: Optional[str] = None
+    detection_mode: Optional[str] = "AI Visual Analysis"
 
 class EventCreate(EventBase):
     video_id: Optional[int] = None
@@ -58,6 +60,8 @@ class EventResponse(EventBase):
     model_config = base_model_config
     id: int
     video_id: Optional[int] = None
+    job_id: Optional[int] = None
+    source_type: Optional[str] = "video_upload"
     start_seconds: float
     end_seconds: float
     timestamp: datetime
@@ -65,6 +69,30 @@ class EventResponse(EventBase):
     review_status: str
     raw_evidence: Optional[str] = None
     is_demo: bool
+    dedup_key: Optional[str] = None
+
+# Structured Vision AI Model Schemas
+class VisionActivityItem(BaseModel):
+    model_config = base_model_config
+    start_time_seconds: float
+    end_time_seconds: float
+    category: str # "Person", "Vehicle", "Animal", "Package", "Motion", "Door", "Uncertain"
+    description: str
+    evidence: str
+    confidence: Optional[float] = None
+    uncertainty: Optional[str] = None
+    review_priority: str = "Low" # "Low", "Medium", "High"
+    priority_reason: Optional[str] = None
+    location: Optional[str] = "Front Door"
+
+class VisionAnalysisOutput(BaseModel):
+    model_config = base_model_config
+    summary: str
+    observed_activities: List[str] = []
+    important_time_ranges: List[str] = []
+    unknown_information: str
+    recommended_review_action: str
+    activities: List[VisionActivityItem] = []
 
 # AI Summary Schemas
 class AISummaryBase(BaseModel):
@@ -74,11 +102,13 @@ class AISummaryBase(BaseModel):
     time_range: str = "00:00 - 00:20"
     evidence: Optional[str] = None
     unknowns: Optional[str] = None
+    uncertainty_limitations: Optional[str] = None
     review_rationale: Optional[str] = None
     suggested_action: Optional[str] = None
     status: str = "Analyzed"
     model_used: str = "Vision AI (Local)"
     objects_detected: str = "Person, Door"
+    frames_sampled: Optional[int] = 0
 
 class AISummaryResponse(AISummaryBase):
     model_config = base_model_config
@@ -111,6 +141,9 @@ class NotificationResponse(BaseModel):
     model_config = base_model_config
     id: int
     event_id: Optional[int] = None
+    video_id: Optional[int] = None
+    job_id: Optional[int] = None
+    notification_type: Optional[str] = "system"
     title: str
     message: str
     priority: str
@@ -131,6 +164,7 @@ class RingDeviceResponse(BaseModel):
     firmware_version: str
     last_sync_at: datetime
     is_simulator: bool
+    source_type: Optional[str] = "ring_partner"
 
 class RingSimulatorTrigger(BaseModel):
     model_config = base_model_config
