@@ -352,7 +352,15 @@ CRITICAL GROUNDING AND EVIDENCE RULES:
         prompt_text = cls._build_grounding_prompt(duration, selected_frames)
         parts.append({"text": prompt_text})
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+        model_name = getattr(settings, "clean_gemini_model", None)
+        if not model_name:
+            model_name = (settings.GEMINI_MODEL or "gemini-3.5-flash").strip()
+            if model_name.startswith("models/"):
+                model_name = model_name[len("models/"):]
+        if not model_name:
+            model_name = "gemini-3.5-flash"
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
         payload = {
             "contents": [{"parts": parts}],
             "generationConfig": {
@@ -380,7 +388,28 @@ CRITICAL GROUNDING AND EVIDENCE RULES:
                 if e.response.status_code in (429, 500, 502, 503, 504) and attempt < max_retries:
                     await asyncio.sleep(1.5 * (attempt + 1))
                     continue
-                raise ValueError(f"Gemini Vision API error ({e.response.status_code}): {e.response.text}") from e
+
+                # Parse clear error message from Google's response if JSON
+                err_detail = e.response.text
+                try:
+                    err_json = e.response.json()
+                    if isinstance(err_json, dict) and "error" in err_json:
+                        err_detail = err_json["error"].get("message", e.response.text)
+                except Exception:
+                    pass
+
+                if e.response.status_code == 404:
+                    raise ValueError(
+                        f"Gemini Vision API error (404): Model '{model_name}' was not found or is not supported for generateContent. "
+                        f"Details: {err_detail}. Please configure a supported GEMINI_MODEL (e.g. 'gemini-3.5-flash')."
+                    ) from e
+                elif e.response.status_code in (401, 403):
+                    raise ValueError(
+                        f"Gemini Vision API authentication error ({e.response.status_code}): {err_detail}. "
+                        "Please verify that GEMINI_API_KEY is valid and has access to the Generative Language API."
+                    ) from e
+                else:
+                    raise ValueError(f"Gemini Vision API error ({e.response.status_code}): {err_detail}") from e
             except httpx.TimeoutException as e:
                 last_error = e
                 if attempt < max_retries:
@@ -388,6 +417,8 @@ CRITICAL GROUNDING AND EVIDENCE RULES:
                     continue
                 raise ValueError("Gemini Vision API request timed out after 60 seconds.") from e
             except Exception as e:
+                if isinstance(e, ValueError):
+                    raise
                 raise ValueError(f"Failed to communicate with Gemini Vision API: {str(e)}") from e
 
         if not raw_text:
@@ -455,7 +486,7 @@ CRITICAL GROUNDING AND EVIDENCE RULES:
             "overall_summary": validated.summary,
             "observations": obs_text,
             "time_range": time_range_str,
-            "evidence": f"Analyzed {len(selected_frames)} keyframes via Gemini Vision ({settings.GEMINI_MODEL}). Face anonymization {'applied' if blur_faces else 'disabled'}.",
+            "evidence": f"Analyzed {len(selected_frames)} keyframes via Gemini Vision ({model_name}). Face anonymization {'applied' if blur_faces else 'disabled'}.",
             "unknowns": validated.unknown_information,
             "uncertainty_limitations": validated.unknown_information,
             "review_rationale": f"Video analysis based on {len(selected_frames)} sampled keyframes across {duration:.1f}s footage.",
@@ -465,7 +496,7 @@ CRITICAL GROUNDING AND EVIDENCE RULES:
             "status": "Analyzed"
         }
 
-        return all_events, summary, f"Gemini Vision ({settings.GEMINI_MODEL})"
+        return all_events, summary, f"Gemini Vision ({model_name})"
 
     @classmethod
     async def _analyze_with_openai(

@@ -37,8 +37,12 @@ def update_settings(payload: dict = Body(...), db: Session = Depends(get_db)):
         settings.AI_PROVIDER = payload["ai_provider"]
     if "gemini_api_key" in payload and payload["gemini_api_key"]:
         settings.GEMINI_API_KEY = payload["gemini_api_key"]
+    if "gemini_model" in payload and payload["gemini_model"]:
+        settings.GEMINI_MODEL = str(payload["gemini_model"]).strip()
     if "openai_api_key" in payload and payload["openai_api_key"]:
         settings.OPENAI_API_KEY = payload["openai_api_key"]
+    if "openai_model" in payload and payload["openai_model"]:
+        settings.OPENAI_MODEL = str(payload["openai_model"]).strip()
     if "ring_simulator_mode" in payload:
         settings.RING_SIMULATOR_MODE = bool(payload["ring_simulator_mode"])
 

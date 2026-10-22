@@ -51,13 +51,16 @@ async def regenerate_summary(payload: SummaryRegenerateRequest, db: Session = De
         blur_faces=blur_faces
     )
     
-    events_data, summary_data, model_name = await AIAnalyzer.analyze_video_frames(
-        video_metadata=meta,
-        sampled_frames=sampled,
-        is_demo=video.is_demo,
-        local_processing_only=local_processing_only,
-        blur_faces=blur_faces
-    )
+    try:
+        events_data, summary_data, model_name = await AIAnalyzer.analyze_video_frames(
+            video_metadata=meta,
+            sampled_frames=sampled,
+            is_demo=video.is_demo,
+            local_processing_only=local_processing_only,
+            blur_faces=blur_faces
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI Vision Analysis failed: {str(e)}") from e
 
     summary = db.query(AISummary).filter(AISummary.video_id == video.id).first()
     if not summary:

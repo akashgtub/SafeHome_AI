@@ -57,7 +57,7 @@ async def test_frames_passed_to_configured_vision_provider(monkeypatch, tmp_path
     # Test Gemini Request Structure
     monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-gemini-key")
-    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-1.5-flash")
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-3.5-flash")
 
     gemini_called_payload = {}
 
@@ -714,3 +714,186 @@ def test_privacy_and_retention_preserved():
     assert p["retention_days"] == 7
     assert p["blur_faces"] is True
     assert p["local_processing_only"] is True
+
+# ====================================================================
+# 15. Gemini model configuration and prefix stripping
+# ====================================================================
+@pytest.mark.anyio
+async def test_gemini_model_configuration_and_prefix_stripping(monkeypatch, tmp_path):
+    frame = str(tmp_path / "f_model.jpg")
+    create_sample_frame_image(frame)
+    sampled = [{"timestamp_sec": 1.0, "time_str": "00:01", "frame_path": frame, "motion_detected": True}]
+    meta = {"duration": 5.0, "fps": 30.0, "width": 640, "height": 480}
+
+    monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    # Provide model with models/ prefix to test automatic normalization
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "models/gemini-3.5-flash")
+
+    called_url = None
+
+    class MockResponse:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self):
+            return {
+                "candidates": [{
+                    "content": {
+                        "parts": [{
+                            "text": json.dumps({
+                                "summary": "Front door clear.",
+                                "observed_activities": ["No unusual activity"],
+                                "important_time_ranges": ["00:00 - 00:05"],
+                                "unknown_information": "None",
+                                "recommended_review_action": "Routine",
+                                "activities": []
+                            })
+                        }]
+                    }
+                }]
+            }
+
+    async def mock_post(self, url, **kwargs):
+        nonlocal called_url
+        called_url = str(url)
+        return MockResponse()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+    events, summary, model_name = await AIAnalyzer.analyze_video_frames(meta, sampled)
+
+    assert called_url is not None
+    # Verify no double models/ in URL path
+    assert "models/gemini-3.5-flash:" in called_url
+    assert "models/models/" not in called_url
+    assert "gemini-3.5-flash" in model_name
+
+# ====================================================================
+# 16. Gemini 404 model not found error produces clear diagnostic message
+# ====================================================================
+@pytest.mark.anyio
+async def test_gemini_404_model_not_found_error_handling(monkeypatch, tmp_path):
+    frame = str(tmp_path / "f_404.jpg")
+    create_sample_frame_image(frame)
+    sampled = [{"timestamp_sec": 1.0, "time_str": "00:01", "frame_path": frame, "motion_detected": True}]
+    meta = {"duration": 5.0, "fps": 30.0, "width": 640, "height": 480}
+
+    monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-1.5-flash")
+
+    class Mock404Response:
+        status_code = 404
+        text = json.dumps({
+            "error": {
+                "code": 404,
+                "message": "models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent.",
+                "status": "NOT_FOUND"
+            }
+        })
+        def raise_for_status(self):
+            request = httpx.Request("POST", "https://generativelanguage.googleapis.com")
+            response = httpx.Response(status_code=404, request=request, text=self.text)
+            raise httpx.HTTPStatusError("404 Not Found", request=request, response=response)
+        def json(self):
+            return json.loads(self.text)
+
+    async def mock_post(self, url, **kwargs):
+        return Mock404Response()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+    with pytest.raises(ValueError) as exc_info:
+        await AIAnalyzer.analyze_video_frames(meta, sampled)
+
+    err = str(exc_info.value)
+    assert "404" in err
+    assert "gemini-1.5-flash" in err
+    assert "GEMINI_MODEL" in err
+
+# ====================================================================
+# 17. Gemini authentication and timeout errors provide clear descriptions
+# ====================================================================
+@pytest.mark.anyio
+async def test_gemini_auth_and_timeout_error_handling(monkeypatch, tmp_path):
+    frame = str(tmp_path / "f_err.jpg")
+    create_sample_frame_image(frame)
+    sampled = [{"timestamp_sec": 1.0, "time_str": "00:01", "frame_path": frame, "motion_detected": True}]
+    meta = {"duration": 5.0, "fps": 30.0, "width": 640, "height": 480}
+
+    monkeypatch.setattr(settings, "AI_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "invalid-key")
+    monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-3.5-flash")
+
+    # 1. Auth error (401 / 403)
+    class Mock403Response:
+        status_code = 403
+        text = json.dumps({"error": {"code": 403, "message": "API key not valid."}})
+        def raise_for_status(self):
+            request = httpx.Request("POST", "https://generativelanguage.googleapis.com")
+            response = httpx.Response(status_code=403, request=request, text=self.text)
+            raise httpx.HTTPStatusError("403 Forbidden", request=request, response=response)
+        def json(self):
+            return json.loads(self.text)
+
+    async def mock_post_auth(self, url, **kwargs):
+        return Mock403Response()
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post_auth)
+
+    with pytest.raises(ValueError) as exc_info:
+        await AIAnalyzer.analyze_video_frames(meta, sampled)
+    assert "authentication error (403)" in str(exc_info.value).lower()
+    assert "GEMINI_API_KEY" in str(exc_info.value)
+
+    # 2. Timeout error
+    async def mock_post_timeout(self, url, **kwargs):
+        raise httpx.TimeoutException("Connection timed out")
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post_timeout)
+
+    with pytest.raises(ValueError) as exc_timeout:
+        await AIAnalyzer.analyze_video_frames(meta, sampled)
+    assert "timed out" in str(exc_timeout.value).lower()
+
+# ====================================================================
+# 18. Regenerate summary endpoint returns HTTP 502 on Gemini failure
+# ====================================================================
+def test_regenerate_summary_handles_ai_failure_with_502(monkeypatch, tmp_path):
+    frame = str(tmp_path / "vid_regen.jpg")
+    create_sample_frame_image(frame)
+
+    db = TestingSessionLocal()
+    vid = Video(filename="regen.mp4", original_filename="regen.mp4", file_path=frame, status="completed")
+    db.add(vid)
+    db.commit()
+    vid_id = vid.id
+    db.close()
+
+    monkeypatch.setattr(VideoProcessor, "extract_metadata", lambda p: {"duration": 5.0, "fps": 30.0, "width": 640, "height": 480})
+    monkeypatch.setattr(VideoProcessor, "sample_frames_and_detect_motion", lambda *a, **kw: [
+        {"timestamp_sec": 1.0, "time_str": "00:01", "frame_path": frame, "motion_detected": True}
+    ])
+
+    async def mock_fail(*args, **kwargs):
+        raise ValueError("Gemini Vision API error (404): Model 'gemini-1.5-flash' is not found")
+
+    monkeypatch.setattr(AIAnalyzer, "analyze_video_frames", mock_fail)
+
+    resp = client.post("/api/summaries/regenerate", json={"video_id": vid_id})
+    assert resp.status_code == 502
+    data = resp.json()
+    assert "AI Vision Analysis failed" in data["detail"]
+    assert "404" in data["detail"]
+
+# ====================================================================
+# 19. Settings endpoint reads and updates GEMINI_MODEL dynamically
+# ====================================================================
+def test_settings_endpoint_updates_gemini_model():
+    resp = client.post("/api/settings", json={"gemini_model": "gemini-3.8-flash"})
+    assert resp.status_code == 200
+
+    get_resp = client.get("/api/settings")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["gemini_model"] == "gemini-3.8-flash"
+

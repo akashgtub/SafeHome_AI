@@ -137,7 +137,7 @@ export const SettingsPage: React.FC = () => {
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-safehome-text">
-                    Google Gemini 1.5 Flash Vision (Recommended Cloud Provider)
+                    Google Gemini Flash Vision (Recommended Cloud Provider)
                   </span>
                   {hasGeminiKey && (
                     <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-[#E7F6EC] text-safehome-primary">

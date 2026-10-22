@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     AI_PROVIDER: str = "gemini"  # "gemini", "openai", "local"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
 
@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> List[str]:
         return [origin.strip().rstrip("/") for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def clean_gemini_model(self) -> str:
+        model = (self.GEMINI_MODEL or "gemini-3.5-flash").strip()
+        if model.startswith("models/"):
+            model = model[len("models/"):]
+        return model or "gemini-3.5-flash"
 
 settings = Settings()
 
