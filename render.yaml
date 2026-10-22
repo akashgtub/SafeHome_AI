@@ -34,6 +34,10 @@ services:
         value: ./data/frames
       - key: SAMPLE_DIR
         value: ./data/sample
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "200"
+      - key: MAX_VIDEO_DURATION_SECONDS
+        value: "600"
       - key: RING_SIMULATOR_MODE
         value: "True"
       - key: RING_CLIENT_ID
