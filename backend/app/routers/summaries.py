@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -81,7 +81,11 @@ async def regenerate_summary(payload: SummaryRegenerateRequest, db: Session = De
     return summary
 
 @router.get("/{summary_id}/export")
-def export_summary(summary_id: int, format: str = Query("markdown", enum=["markdown", "json", "text"]), db: Session = Depends(get_db)):
+def export_summary(
+    summary_id: int,
+    format: Literal["markdown", "json", "text"] = Query("markdown"),
+    db: Session = Depends(get_db)
+):
     summary = db.query(AISummary).filter(AISummary.id == summary_id).first()
     if not summary:
         raise HTTPException(status_code=404, detail="Summary not found")
@@ -127,4 +131,5 @@ def export_summary(summary_id: int, format: str = Query("markdown", enum=["markd
 ---
 *Notice: SafeHome AI enforces strict visual grounding. This report contains no inferred intent or unverified accusations.*
 """
-    return {"content": md_report, "filename": f"SafeHome_Report_{summary.id}.md"}
+    ext = "txt" if format == "text" else "md"
+    return {"content": md_report, "filename": f"SafeHome_Report_{summary.id}.{ext}"}

@@ -694,3 +694,78 @@ def test_fake_demo_data_not_inserted_in_production():
     assert demo_summaries == 0
     assert sim_devices == 0
 
+# ====================================================================
+# 22. Summary export endpoint format validation
+# ====================================================================
+def test_export_summary_format_validation():
+    db = TestingSessionLocal()
+    video = Video(
+        filename="test_export.mp4",
+        original_filename="test_export.mp4",
+        file_path="/fake/test_export.mp4",
+        file_size=1024,
+        status="completed",
+        is_demo=False
+    )
+    db.add(video)
+    db.commit()
+
+    summary = AISummary(
+        video_id=video.id,
+        overall_summary="Clear test summary.",
+        observations="Observation 1",
+        time_range="00:00 - 00:10",
+        evidence="Evidence item",
+        unknowns="None",
+        review_rationale="Routine inspection",
+        suggested_action="No action",
+        model_used="gemini-1.5-flash",
+        objects_detected="Person",
+        is_demo=False
+    )
+    db.add(summary)
+    db.commit()
+    summary_id = summary.id
+    db.close()
+
+    # 1. Default format (markdown)
+    resp_default = client.get(f"/api/summaries/{summary_id}/export")
+    assert resp_default.status_code == 200
+    data_default = resp_default.json()
+    assert "content" in data_default
+    assert data_default["filename"] == f"SafeHome_Report_{summary_id}.md"
+    assert "SafeHome AI — Security Intelligence Report" in data_default["content"]
+
+    # 2. Explicit markdown format
+    resp_md = client.get(f"/api/summaries/{summary_id}/export?format=markdown")
+    assert resp_md.status_code == 200
+    data_md = resp_md.json()
+    assert "content" in data_md
+    assert data_md["filename"] == f"SafeHome_Report_{summary_id}.md"
+
+    # 3. JSON format
+    resp_json = client.get(f"/api/summaries/{summary_id}/export?format=json")
+    assert resp_json.status_code == 200
+    data_json = resp_json.json()
+    assert data_json["id"] == summary_id
+    assert data_json["overall_summary"] == "Clear test summary."
+    assert data_json["model_used"] == "gemini-1.5-flash"
+
+    # 4. Text format
+    resp_text = client.get(f"/api/summaries/{summary_id}/export?format=text")
+    assert resp_text.status_code == 200
+    data_text = resp_text.json()
+    assert "content" in data_text
+    assert data_text["filename"] == f"SafeHome_Report_{summary_id}.txt"
+
+    # 5. Unsupported formats return HTTP 422
+    resp_invalid = client.get(f"/api/summaries/{summary_id}/export?format=xml")
+    assert resp_invalid.status_code == 422
+
+    resp_invalid2 = client.get(f"/api/summaries/{summary_id}/export?format=pdf")
+    assert resp_invalid2.status_code == 422
+
+    resp_invalid3 = client.get(f"/api/summaries/{summary_id}/export?format=unsupported")
+    assert resp_invalid3.status_code == 422
+
+
